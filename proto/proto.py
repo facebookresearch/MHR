@@ -6,7 +6,8 @@
 
 import numpy as np
 import pymomentum.geometry as pym_geometry
-import pymomentum.torch.character as gpu_character
+# import pymomentum.torch.character as gpu_character
+import pymomentum.gpu_character as gpu_character
 
 import torch
 
@@ -131,7 +132,7 @@ class PROTO(torch.nn.Module):
         correctives_data = np.load(correctives_path)
 
         # Identity model
-        mean_shape, identity_blendshapes = load_blendshapes(correctives_data)
+        mean_shape, identity_blendshapes = load_blendshapes(correctives_data, is_identity=True)
 
         identity_model = PROTOLinearBlendshapeModel(identity_blendshapes, mean_shape)
         identity_model.to(device)
@@ -172,10 +173,7 @@ class PROTO(torch.nn.Module):
         """Load character and model parameterization, and create full model."""
 
         # Create character
-        character = pym_geometry.Character.load_fbx(get_proto_fbx_path(lod))
-
-        # Load model parameterization
-        character = character.load_model_definition_from_bytes(get_proto_model_path())
+        character = pym_geometry.Character.load_fbx(get_proto_fbx_path(lod), get_proto_model_path())
 
         # Create full model
         return PROTO._create_model(character, get_proto_correctives_path(lod), device)

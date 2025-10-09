@@ -24,7 +24,7 @@ def get_proto_fbx_path(lod: int) -> str:
     """Return the path to the PROTO fbx file."""
 
     script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / f"rig_{lod}.fbx"
+    asset_path = script_dir.parent / "assets" / f"rig_lod{lod}.fbx"
     return str(asset_path)
 
 
@@ -40,7 +40,7 @@ def get_proto_correctives_path(lod: int) -> str:
     """Return the path to the file storing identity blendshapes, facial expression blendshapes, and pose-dependent correctives."""
 
     script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / "correctives_{lod}.npz"
+    asset_path = script_dir.parent / "assets" / f"correctives_lod{lod}.npz"
     return str(asset_path)
 
 
@@ -62,7 +62,8 @@ def load_pose_dirs_predictor(
             125 * 24, 18439 * 3, bias=False
         ),  # TODO: Hard-coded numbers should be removed, deal with LODs!
     )
-    state_dict = {k: torch.tensor(data[k]) for k in data.keys() if k.startswith(POSE_CORRECTIVES_STATE_PREFIX)}
+    # TODO: Loading state dict like this is not ideal
+    state_dict = {k.replace(f"{POSE_CORRECTIVES_STATE_PREFIX}_", ""): torch.tensor(data[k]) for k in data.keys() if k.startswith(POSE_CORRECTIVES_STATE_PREFIX)}
     posedirs.load_state_dict(state_dict)
     for posedir in posedirs.parameters():
         posedir.requires_grad = False

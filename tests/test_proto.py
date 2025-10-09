@@ -60,3 +60,6 @@ class TestPROTOModel(unittest.TestCase):
         proto_model = PROTO.from_files(device=self.device)
         res = self._instantiate_model(proto_model, apply_face_expressions=False, apply_pose_correctives=False)
         self.assertTrue(res.shape[0] == self.batch_size)
+
+if __name__ == "__main__":
+    unittest.main()
