@@ -27,7 +27,7 @@ from .io import (
 )
 from .utils import batch6DFromXYZ
 
-LOD = Literal[4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6]
+LOD = Literal[0, 1, 2, 3, 4, 5, 6]
 
 
 class PROTOLinearBlendshapeModel(torch.nn.Module):
