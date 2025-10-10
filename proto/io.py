@@ -70,7 +70,7 @@ def load_pose_dirs_predictor(
         ),
     }
     state_dict["2.weight"] = torch.from_numpy(
-        blendshapes_data[POSE_CORRECTIVES_COMPONENTS_NAME].reshape((-1, n_components))
+        blendshapes_data[POSE_CORRECTIVES_COMPONENTS_NAME].reshape((n_components, -1)).T
     )
 
     posedirs = torch.nn.Sequential(
