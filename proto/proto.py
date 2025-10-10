@@ -190,9 +190,11 @@ class PROTO(torch.nn.Module):
         """Load character and model parameterization, and create full model."""
 
         # Create character
-        character = pym_geometry.Character.load_fbx(
-            get_proto_fbx_path(lod), get_proto_model_path()
-        )
+        fbx_path = get_proto_fbx_path(lod)
+        model_path = get_proto_model_path()
+        assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
+        assert os.path.exists(model_path), f"Model file not found at {model_path}"
+        character = pym_geometry.Character.load_fbx(fbx_path, model_path)
 
         # Create full model
         blendshapes_path = get_proto_blendshapes_path(lod)
