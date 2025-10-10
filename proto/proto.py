@@ -3,24 +3,31 @@
 # This source code is licensed under the TODO license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
+
+from typing import Literal
 
 import numpy as np
 import pymomentum.geometry as pym_geometry
+
 # import pymomentum.torch.character as gpu_character
 import pymomentum.gpu_character as gpu_character
 
 import torch
 
 from .io import (
-    get_proto_correctives_path,
+    get_corrective_activation_path,
+    get_proto_blendshapes_path,
     get_proto_fbx_path,
     get_proto_model_path,
-    has_facial_expressions,
-    has_pose_correctives,
+    has_face_expression_blendshapes,
+    has_pose_corrective_blendshapes,
     load_blendshapes,
     load_pose_dirs_predictor,
 )
 from .utils import batch6DFromXYZ
+
+LOD = Literal[4, 5, 6]  # [0, 1, 2, 3, 4, 5, 6]
 
 
 class PROTOLinearBlendshapeModel(torch.nn.Module):
@@ -124,15 +131,18 @@ class PROTO(torch.nn.Module):
     @staticmethod
     def _create_model(
         character: pym_geometry.Character,
-        correctives_path: str,
+        blendshapes_path: str,
+        corrective_activation_path: str | None,
         device: torch.device,
     ) -> "PROTO":
-        """Create PROTO model from the given character and asset path."""
+        """Create PROTO model from the given character and asset paths."""
 
-        correctives_data = np.load(correctives_path)
+        blendshapes_data = np.load(blendshapes_path)
 
         # Identity model
-        mean_shape, identity_blendshapes = load_blendshapes(correctives_data, is_identity=True)
+        mean_shape, identity_blendshapes = load_blendshapes(
+            blendshapes_data, is_identity=True
+        )
 
         identity_model = PROTOLinearBlendshapeModel(identity_blendshapes, mean_shape)
         identity_model.to(device)
@@ -140,24 +150,30 @@ class PROTO(torch.nn.Module):
         # Face expressions model
         face_expressions_model = (
             PROTOLinearBlendshapeModel(
-                load_blendshapes(correctives_data, is_identity=False)
+                load_blendshapes(blendshapes_data, is_identity=False)
             )
-            if has_facial_expressions(correctives_data)
+            if has_face_expression_blendshapes(blendshapes_data)
             else None
         )
         if face_expressions_model is not None:
             face_expressions_model.to(device)
 
         # Pose correctives model
-        pose_correctives_model = (
-            PROTOPoseCorrectivesModel(
+        pose_correctives_model = None
+        has_pose_correctives = (
+            has_pose_corrective_blendshapes(blendshapes_data)
+            and corrective_activation_path is not None
+        )
+        if has_pose_correctives:
+            corrective_activation_data = np.load(corrective_activation_path)
+            pose_correctives_model = PROTOPoseCorrectivesModel(
                 load_pose_dirs_predictor(
-                    correctives_data, load_with_cuda=device.type == "cuda"
+                    blendshapes_data,
+                    corrective_activation_data,
+                    load_with_cuda=device.type == "cuda",
                 )
             )
-            if has_pose_correctives(correctives_data)
-            else None
-        )
+
         if pose_correctives_model is not None:
             pose_correctives_model.to(device)
 
@@ -168,15 +184,31 @@ class PROTO(torch.nn.Module):
     @staticmethod
     def from_files(
         device: torch.device = "cuda",
-        lod: int = 1,  # Only LOD1 supported for now
+        lod: LOD = 1,
+        wants_pose_correctives: bool = True,
     ) -> "PROTO":
         """Load character and model parameterization, and create full model."""
 
         # Create character
-        character = pym_geometry.Character.load_fbx(get_proto_fbx_path(lod), get_proto_model_path())
+        character = pym_geometry.Character.load_fbx(
+            get_proto_fbx_path(lod), get_proto_model_path()
+        )
 
         # Create full model
-        return PROTO._create_model(character, get_proto_correctives_path(lod), device)
+        blendshapes_path = get_proto_blendshapes_path(lod)
+        corrective_activation_path = (
+            get_corrective_activation_path() if wants_pose_correctives else None
+        )
+        assert os.path.exists(
+            blendshapes_path
+        ), f"Blendshapes file not found at {blendshapes_path}"
+        if corrective_activation_path is not None:
+            assert os.path.exists(
+                corrective_activation_path
+            ), f"Corrective activation file not found at {corrective_activation_path}"
+        return PROTO._create_model(
+            character, blendshapes_path, corrective_activation_path, device
+        )
 
     def forward(
         self,
