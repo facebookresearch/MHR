@@ -57,7 +57,7 @@ You'll need the official SMPL/SMPLX model files:
 ### Run Examples
 
 ```bash
-pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -i input_poses.npy -o output_dir
+pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -o output_dir
 ```
 
 ### Programmatic Usage
