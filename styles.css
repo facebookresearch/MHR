@@ -1,0 +1,157 @@
+html {
+  font-size: clamp(20px, 2.5vw, 36px);
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #222;
+  font-family: 'Inter', system-ui, Arial, sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Fluid container: scales from 320px to 1200px, prefers 90vw */
+.container {
+  width: clamp(320px, 90vw, 1600px);
+  margin: 3.5rem auto 0 auto;
+  padding: 0 2vw 3rem 2vw;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* Fluid boxes: scale with container, never exceed 1100px */
+.grey-box,
+.abstract,
+.additional-resources {
+  width: clamp(320px, 90vw, 1500px);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.grey-box {
+  background: #f5f6f7;
+  width: clamp(320px, 80vw, 1500px);
+  max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  padding: 2rem 2rem 1.5rem 2rem;
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.top-box {
+  margin-top: 0;
+}
+
+.bottom-box {
+  margin-top: 3rem;
+  margin-bottom: 0;
+}
+
+.title {
+  font-size: 2.2rem;
+  font-weight: 600;
+  margin-bottom: 0.7rem;
+  letter-spacing: -0.01em;
+}
+
+.authors {
+  font-size: 1.1rem;
+  color: #222;
+  margin-bottom: 0;
+}
+
+.hero {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2.5rem;
+}
+
+.teaser-img {
+  width: clamp(320px, 80vw, 1500px);
+  max-width: 1500px;
+  height: auto;
+  border-radius: 1.25rem;
+  display: block;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.abstract {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.abstract h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.abstract p {
+  font-size: 1.15rem;
+  color: #222;
+  margin: 0;
+}
+
+.additional-resources {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.additional-resources h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1.2rem;
+  color: #222;
+}
+
+.additional-resources ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 2.5rem;
+  justify-content: center;
+}
+
+.additional-resources li {
+  margin: 0;
+}
+
+.additional-resources a {
+  color: #1877f2;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 1.08rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 0.5rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.additional-resources a:hover {
+  background: #f3f6fa;
+  color: #145db2;
+}
+
+.bibtex {
+  text-align: left;
+  background: #eaeaea;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-size: 0.95rem;
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', monospace;
+  overflow-x: auto;
+  margin-top: 1rem;
+}
