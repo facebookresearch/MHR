@@ -10,8 +10,7 @@ from typing import Literal
 import numpy as np
 import pymomentum.geometry as pym_geometry
 
-# import pymomentum.torch.character as gpu_character
-import pymomentum.gpu_character as gpu_character
+import pymomentum.torch.character as gpu_character
 
 import torch
 
