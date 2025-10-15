@@ -37,7 +37,7 @@ def get_proto_model_path() -> str:
 
 
 def get_proto_blendshapes_path(lod: int) -> str:
-    """Return the path to the file storing identity, facial expression, and psoe-dependent blendshapes."""
+    """Return the path to the file storing identity, facial expression, and pose-dependent blendshapes."""
 
     script_dir = Path(__file__).parent
     asset_path = script_dir.parent / "assets" / f"blendshapes_lod{lod}.npz"
@@ -75,8 +75,8 @@ def load_pose_dirs_predictor(
 
     posedirs = torch.nn.Sequential(
         SparseLinear(
-            125 * 6,
-            125 * 24,
+            125 * 6, # num joints minus the 2 global ones (125) x 6D rotation representation
+            125 * 24, # 24 is a hyperparameter
             torch.from_numpy(corrective_activation_data["posedirs_sparse_mask"]),
             bias=False,
             load_with_cuda=load_with_cuda,

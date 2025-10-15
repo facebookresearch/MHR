@@ -72,7 +72,7 @@ class SparseLinear(torch.nn.Module):
         else:
             self.bias = None
 
-        # Initialize!
+        # Initialize
         for out_idx in range(out_channels):
             # By default, self.weight is initialized with kaiming,
             # fan_in, linear default.
@@ -98,10 +98,8 @@ class SparseLinear(torch.nn.Module):
         )
         if self.bias is None:
             return (curr_weight @ x.T).T
-            # return torch.sparse.mm(curr_weight, x.T).T
         else:
             return (curr_weight @ x.T).T + self.bias
-            # return torch.sparse.mm(curr_weight, x.T).T + self.bias
 
     def __repr__(self):
         return f"SparseLinear(in_channels={self.in_channels}, out_channels={self.out_channels}, bias={self.bias is not None})"

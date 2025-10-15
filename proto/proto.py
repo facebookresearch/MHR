@@ -89,8 +89,9 @@ class PROTOPoseCorrectivesModel(torch.nn.Module):
             :, 2:, 3:6
         ]  # Extract rotations (Euler XYZ) from joint parameters, excluding the first two joints (not defining local pose)
         joint_6d_feat = batch6DFromXYZ(joint_euler_angles)
-        joint_6d_feat[:, :, 0] -= 1  # so all 0 when no rotation.
-        joint_6d_feat[:, :, 4] -= 1  # so all 0 when no rotation.
+        # Setting also the elements of the matrix diagonal to 0 when there is no rotation (so everything is set to 0)
+        joint_6d_feat[:, :, 0] -= 1
+        joint_6d_feat[:, :, 4] -= 1
         joint_6d_feat = joint_6d_feat.flatten(1, 2)
         return joint_6d_feat
 
