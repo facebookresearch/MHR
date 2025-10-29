@@ -16,9 +16,9 @@ import torch
 
 from .io import (
     get_corrective_activation_path,
-    get_proto_blendshapes_path,
-    get_proto_fbx_path,
-    get_proto_model_path,
+    get_mhr_blendshapes_path,
+    get_mhr_fbx_path,
+    get_mhr_model_path,
     has_face_expression_blendshapes,
     has_pose_corrective_blendshapes,
     load_blendshapes,
@@ -29,7 +29,7 @@ from .utils import batch6DFromXYZ
 LOD = Literal[0, 1, 2, 3, 4, 5, 6]
 
 
-class PROTOLinearBlendshapeModel(torch.nn.Module):
+class MHRLinearBlendshapeModel(torch.nn.Module):
     """Linear blendshape model used for identity and facial expressions."""
 
     def __init__(
@@ -69,7 +69,7 @@ class PROTOLinearBlendshapeModel(torch.nn.Module):
         return to_return.reshape(batch_size, -1, 3)
 
 
-class PROTOPoseCorrectivesModel(torch.nn.Module):
+class MHRPoseCorrectivesModel(torch.nn.Module):
     """Non-linear pose correctives model."""
 
     def __init__(self, pose_dirs_predictor: torch.nn.Sequential) -> None:
@@ -105,15 +105,15 @@ class PROTOPoseCorrectivesModel(torch.nn.Module):
         return pose_corrective_offsets
 
 
-class PROTO(torch.nn.Module):
-    """PROTO body model."""
+class MHR(torch.nn.Module):
+    """MHR body model."""
 
     def __init__(
         self,
         character: pym_geometry.Character,
-        identity_model: PROTOLinearBlendshapeModel,
-        face_expressions_model: PROTOLinearBlendshapeModel | None,
-        pose_correctives_model: PROTOPoseCorrectivesModel | None,
+        identity_model: MHRLinearBlendshapeModel,
+        face_expressions_model: MHRLinearBlendshapeModel | None,
+        pose_correctives_model: MHRPoseCorrectivesModel | None,
     ) -> None:
         super().__init__()
 
@@ -134,8 +134,8 @@ class PROTO(torch.nn.Module):
         blendshapes_path: str,
         corrective_activation_path: str | None,
         device: torch.device,
-    ) -> "PROTO":
-        """Create PROTO model from the given character and asset paths."""
+    ) -> "MHR":
+        """Create MHR model from the given character and asset paths."""
 
         blendshapes_data = np.load(blendshapes_path)
 
@@ -144,12 +144,12 @@ class PROTO(torch.nn.Module):
             blendshapes_data, is_identity=True
         )
 
-        identity_model = PROTOLinearBlendshapeModel(identity_blendshapes, mean_shape)
+        identity_model = MHRLinearBlendshapeModel(identity_blendshapes, mean_shape)
         identity_model.to(device)
 
         # Face expressions model
         face_expressions_model = (
-            PROTOLinearBlendshapeModel(
+            MHRLinearBlendshapeModel(
                 load_blendshapes(blendshapes_data, is_identity=False)
             )
             if has_face_expression_blendshapes(blendshapes_data)
@@ -166,7 +166,7 @@ class PROTO(torch.nn.Module):
         )
         if has_pose_correctives:
             corrective_activation_data = np.load(corrective_activation_path)
-            pose_correctives_model = PROTOPoseCorrectivesModel(
+            pose_correctives_model = MHRPoseCorrectivesModel(
                 load_pose_dirs_predictor(
                     blendshapes_data,
                     corrective_activation_data,
@@ -177,7 +177,7 @@ class PROTO(torch.nn.Module):
         if pose_correctives_model is not None:
             pose_correctives_model.to(device)
 
-        return PROTO(
+        return MHR(
             character, identity_model, face_expressions_model, pose_correctives_model
         )
 
@@ -186,18 +186,18 @@ class PROTO(torch.nn.Module):
         device: torch.device = "cuda",
         lod: LOD = 1,
         wants_pose_correctives: bool = True,
-    ) -> "PROTO":
+    ) -> "MHR":
         """Load character and model parameterization, and create full model."""
 
         # Create character
-        fbx_path = get_proto_fbx_path(lod)
-        model_path = get_proto_model_path()
+        fbx_path = get_mhr_fbx_path(lod)
+        model_path = get_mhr_model_path()
         assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
         assert os.path.exists(model_path), f"Model file not found at {model_path}"
         character = pym_geometry.Character.load_fbx(fbx_path, model_path)
 
         # Create full model
-        blendshapes_path = get_proto_blendshapes_path(lod)
+        blendshapes_path = get_mhr_blendshapes_path(lod)
         corrective_activation_path = (
             get_corrective_activation_path() if wants_pose_correctives else None
         )
@@ -208,7 +208,7 @@ class PROTO(torch.nn.Module):
             assert os.path.exists(
                 corrective_activation_path
             ), f"Corrective activation file not found at {corrective_activation_path}"
-        return PROTO._create_model(
+        return MHR._create_model(
             character, blendshapes_path, corrective_activation_path, device
         )
 

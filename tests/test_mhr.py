@@ -9,11 +9,11 @@ from typing import get_args
 
 import torch
 
-from proto.proto import LOD, PROTO
+from mhr.mhr import LOD, MHR
 
 
-class TestPROTOModel(unittest.TestCase):
-    """Test PROTO model."""
+class TestMHRModel(unittest.TestCase):
+    """Test MHR model."""
 
     def setUp(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,7 +21,7 @@ class TestPROTOModel(unittest.TestCase):
 
     def _instantiate_model(
         self,
-        model: PROTO,
+        model: MHR,
         apply_face_expressions: bool = True,
         apply_pose_correctives: bool = True,
     ) -> torch.Tensor:
@@ -51,35 +51,35 @@ class TestPROTOModel(unittest.TestCase):
         """Test body model loading and forward call, applying pose correctives."""
 
         for lod in get_args(LOD):
-            proto_model = PROTO.from_files(device=self.device, lod=lod)
-            res = self._instantiate_model(proto_model)
+            mhr_model = MHR.from_files(device=self.device, lod=lod)
+            res = self._instantiate_model(mhr_model)
             self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_loading_pose_correctives(self):
         """Test body model loading and forward call, without loading pose correctives."""
 
         for lod in get_args(LOD):
-            proto_model = PROTO.from_files(
+            mhr_model = MHR.from_files(
                 device=self.device, lod=lod, wants_pose_correctives=False
             )
-            res = self._instantiate_model(proto_model)
+            res = self._instantiate_model(mhr_model)
             self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives(self):
         """Test body model loading and forward call, without applying pose correctives."""
 
         for lod in get_args(LOD):
-            proto_model = PROTO.from_files(device=self.device, lod=lod)
-            res = self._instantiate_model(proto_model, apply_pose_correctives=False)
+            mhr_model = MHR.from_files(device=self.device, lod=lod)
+            res = self._instantiate_model(mhr_model, apply_pose_correctives=False)
             self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives_and_face_expr(self):
         """Test body model loading and forward call, without applying pose correctives and facial expressions."""
 
         for lod in get_args(LOD):
-            proto_model = PROTO.from_files(device=self.device, lod=lod)
+            mhr_model = MHR.from_files(device=self.device, lod=lod)
             res = self._instantiate_model(
-                proto_model, apply_face_expressions=False, apply_pose_correctives=False
+                mhr_model, apply_face_expressions=False, apply_pose_correctives=False
             )
             self.assertTrue(res.shape[0] == self.batch_size)
 

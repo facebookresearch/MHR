@@ -20,23 +20,23 @@ POSE_CORRECTIVES_SPARSE_MASK_NAME = "posedirs_sparse_mask"
 POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 
 
-def get_proto_fbx_path(lod: int) -> str:
-    """Return the path to the PROTO fbx file."""
+def get_mhr_fbx_path(lod: int) -> str:
+    """Return the path to the MHR fbx file."""
 
     script_dir = Path(__file__).parent
     asset_path = script_dir.parent / "assets" / f"rig_lod{lod}.fbx"
     return str(asset_path)
 
 
-def get_proto_model_path() -> str:
-    """Return the path to the PROTO model definition file (same across LODs)."""
+def get_mhr_model_path() -> str:
+    """Return the path to the MHR model definition file (same across LODs)."""
 
     script_dir = Path(__file__).parent
     asset_path = script_dir.parent / "assets" / "model_definition.model"
     return str(asset_path)
 
 
-def get_proto_blendshapes_path(lod: int) -> str:
+def get_mhr_blendshapes_path(lod: int) -> str:
     """Return the path to the file storing identity, facial expression, and pose-dependent blendshapes."""
 
     script_dir = Path(__file__).parent
@@ -75,8 +75,9 @@ def load_pose_dirs_predictor(
 
     posedirs = torch.nn.Sequential(
         SparseLinear(
-            125 * 6, # num joints minus the 2 global ones (125) x 6D rotation representation
-            125 * 24, # 24 is a hyperparameter
+            125
+            * 6,  # num joints minus the 2 global ones (125) x 6D rotation representation
+            125 * 24,  # 24 is a hyperparameter
             torch.from_numpy(corrective_activation_data["posedirs_sparse_mask"]),
             bias=False,
             load_with_cuda=load_with_cuda,
