@@ -53,11 +53,11 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
-_SMPL2TRINITY_MAPPING_FILE = "assets/smpl2trinity_mapping.npz"
-_SMPLX2TRINITY_MAPPING_FILE = "assets/smplx2trinity_mapping.npz"
+_SMPL2MHR_MAPPING_FILE = "assets/smpl2mhr_mapping.npz"
+_SMPLX2MHR_MAPPING_FILE = "assets/smplx2mhr_mapping.npz"
 
-_TRINITY2SMPL_MAPPING_FILE = "assets/trinity2smpl_mapping.npz"
-_TRINITY2SMPLX_MAPPING_FILE = "assets/trinity2smplx_mapping.npz"
+_MHR2SMPL_MAPPING_FILE = "assets/mhr2smpl_mapping.npz"
+_MHR2SMPLX_MAPPING_FILE = "assets/mhr2smplx_mapping.npz"
 
 _NUM_VERTICES_SMPL = 6890
 _NUM_VERTICES_SMPLX = 10475
@@ -921,7 +921,7 @@ class Conversion:
             process=False,
         )
         edges = (
-            torch.from_numpy(smpl_template_mesh.edges_unique.clone()).long().to(self._DEVICE)
+            torch.from_numpy(smpl_template_mesh.edges_unique.copy()).long().to(self._DEVICE)
         )
 
         num_frames = target_vertices.shape[0]
@@ -1041,15 +1041,15 @@ class Conversion:
         # Select appropriate mapping file
         if direction == "smpl2mhr":
             mapping_file_path = (
-                _SMPL2TRINITY_MAPPING_FILE
+                _SMPL2MHR_MAPPING_FILE
                 if self.smpl_model_type == "smpl"
-                else _SMPLX2TRINITY_MAPPING_FILE
+                else _SMPLX2MHR_MAPPING_FILE
             )
         elif direction == "mhr2smpl":
             mapping_file_path = (
-                _TRINITY2SMPL_MAPPING_FILE
+                _MHR2SMPL_MAPPING_FILE
                 if self.smpl_model_type == "smpl"
-                else _TRINITY2SMPLX_MAPPING_FILE
+                else _MHR2SMPLX_MAPPING_FILE
             )
         else:
             raise ValueError(f"Invalid direction: {direction}")

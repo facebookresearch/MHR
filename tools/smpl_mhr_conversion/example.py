@@ -64,10 +64,10 @@ class DEMO:
         smpl_paras, smplx_paras = self._get_parameter_data(input_smplx_pose_file)
         os.makedirs(output_dir, exist_ok=True)
 
-        # Example 1: Convert the SMPL parameters to Proto with PyMomentum and multiple identities
+        # Example 1: Convert the SMPL parameters to MHR with PyMomentum and multiple identities
         if self.smpl_model is not None:
             print(
-                "\nConverting SMPL parameters to Proto with PyMomentum and multiple identities."
+                "\nConverting SMPL parameters to MHR with PyMomentum and multiple identities."
             )
             example_output_dir = output_dir + "/smpl_para2mhr_pymomentum"
             os.makedirs(example_output_dir, exist_ok=True)
@@ -77,10 +77,10 @@ class DEMO:
                 )
             )
 
-        # Example 2: Convert the SMPLX meshes to Proto with PyTorch and single identity
+        # Example 2: Convert the SMPLX meshes to MHR with PyTorch and single identity
         if self.smplx_model is not None:
             print(
-                "\nConverting SMPLX meshes to Proto with PyTorch and single identity."
+                "\nConverting SMPLX meshes to MHR with PyTorch and single identity."
             )
             example_output_dir = (
                 output_dir + "/smplx_mesh2mhr_pytorch_single_identity"
@@ -92,9 +92,9 @@ class DEMO:
                 )
             )
 
-        # Example 3: Convert the Proto parameters to PyTorch with a single identity
+        # Example 3: Convert the MHR parameters to PyTorch with a single identity
         if self.smplx_model is not None:
-            print("\nConverting Proto parameters to PyTorch with a single identity.")
+            print("\nConverting MHR parameters to PyTorch with a single identity.")
             example_output_dir = output_dir + "/mhr_para2pytorch_single_identity"
             os.makedirs(example_output_dir, exist_ok=True)
             self.example_mhr_parameters_to_pytorch_single_identity(
@@ -104,7 +104,7 @@ class DEMO:
     def example_smpl_parameters_to_mhr_with_pymomentum_multiple_identity(
         self, smpl_paras: dict[str, torch.Tensor], output_dir: str
     ):
-        """Convert SMPL parameters to Proto."""
+        """Convert SMPL parameters to MHR."""
         # Compute the SMPLX meshes with multiple identities and export them.
         num_frames = smpl_paras["body_pose"].shape[0]
         for i in range(num_frames):
@@ -152,7 +152,7 @@ class DEMO:
     def example_smplx_meshes_to_mhr_with_pytorch_single_identity(
         self, smplx_paras: dict, output_dir: str
     ):
-        """Convert SMPL(X) meshes to Proto format."""
+        """Convert SMPL(X) meshes to MHR format."""
         # Compute the SMPLX meshes with single identity and export them.
         input_smpl_vertices = []
         for i in range(smplx_paras["body_pose"].shape[0]):
@@ -200,13 +200,13 @@ class DEMO:
     def example_mhr_parameters_to_pytorch_single_identity(
         self, mhr_parameters: dict, output_dir: str
     ):
-        """Convert Proto parameters to PyTorch."""
+        """Convert MHR parameters to PyTorch."""
         mhr_model = MHR.from_files(lod=1, device=self._device)
         converter = Conversion(
             mhr_model=mhr_model, smpl_model=self.smplx_model, method="pytorch"
         )
 
-        # Compute Proto meshes and export them.
+        # Compute MHR meshes and export them.
         mhr_meshes, _ = converter._mhr_para2mesh(mhr_parameters, return_mesh=True)
         for i, mesh in enumerate(mhr_meshes):
             mesh.vertices /= 100.0
@@ -275,7 +275,7 @@ class DEMO:
 def _parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Convert SMPL(X) parameters/meshes into Proto format",
+        description="Convert SMPL(X) parameters/meshes into MHR format",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
