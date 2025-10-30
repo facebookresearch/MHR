@@ -124,7 +124,7 @@ class MHR(torch.nn.Module):
 
         # Save cpu/gpu characters
         self.character = character
-        self.character_gpu = gpu_character.Character(character).to(
+        self.character_torch = gpu_character.Character(character).to(
             identity_model.blend_shapes
         )
 
@@ -240,10 +240,10 @@ class MHR(torch.nn.Module):
         identity_rest_pose = self.identity_model.forward(identity_coeffs)
 
         # Compute joint parameters (local) and skeleton state (global)
-        joint_parameters = self.character_gpu.model_parameters_to_joint_parameters(
+        joint_parameters = self.character_torch.model_parameters_to_joint_parameters(
             model_parameters
         )
-        skel_state = self.character_gpu.joint_parameters_to_skeleton_state(
+        skel_state = self.character_torch.joint_parameters_to_skeleton_state(
             joint_parameters
         )
 
@@ -271,7 +271,7 @@ class MHR(torch.nn.Module):
             )
 
         # Compute vertices
-        verts = self.character_gpu.skin_points(
+        verts = self.character_torch.skin_points(
             skel_state=skel_state, rest_vertex_positions=linear_model_unposed
         )
 
