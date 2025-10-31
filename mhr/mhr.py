@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 import pymomentum.geometry as pym_geometry
 
-import pymomentum.torch.character as gpu_character
+import pymomentum.torch.character as torch_character
 
 import torch
 
@@ -124,7 +124,7 @@ class MHR(torch.nn.Module):
 
         # Save cpu/gpu characters
         self.character = character
-        self.character_torch = gpu_character.Character(character).to(
+        self.character_torch = torch_character.Character(character).to(
             identity_model.blend_shapes
         )
 

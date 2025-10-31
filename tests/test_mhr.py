@@ -28,7 +28,7 @@ class TestMHRModel(unittest.TestCase):
         """Create random parameters and invoke model forward call."""
 
         n_id_blendshapes = model.identity_model.blend_shapes.shape[0]
-        n_params = len(model.character_gpu.parameter_transform.parameter_names)
+        n_params = len(model.character_torch.parameter_transform.parameter_names)
 
         coeffs = torch.rand(1, n_id_blendshapes).to(self.device)
         params = torch.rand(self.batch_size, n_params).to(self.device)
