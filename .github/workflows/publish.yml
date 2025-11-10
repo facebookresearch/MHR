@@ -9,6 +9,9 @@ jobs:
   publish:
     name: Build and publish to PyPI
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -40,8 +43,6 @@ jobs:
           pixi run build
 
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          pixi run -e default python -m twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
