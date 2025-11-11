@@ -108,7 +108,8 @@ class SparseLinear(torch.nn.Module):
         # We commented out the following lines because it conflicts with
         # torch.jit.trace. Currently we can't use torch.jit.script because
         # the current pymomentum does not support it. The use of sparse
-        # matrix does save memory and computation.
+        # matrix does save memory and computation. We use the dense weight
+        # as a compromised solution.
 
         # curr_weight = torch.sparse_coo_tensor(
         #     self.sparse_indices, self.sparse_weight, self.sparse_shape
