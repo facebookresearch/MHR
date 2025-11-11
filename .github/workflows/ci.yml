@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: py-${{ matrix.python-version }}-${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux only (pymomentum-gpu only available on Linux)
+          - os: ubuntu-latest
+            platform: linux-64
+            python-version: py312
+          - os: ubuntu-latest
+            platform: linux-64
+            python-version: py313
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.3
+        with:
+          environments: ${{ matrix.python-version }}
+          cache: true
+
+      - name: Run tests
+        run: |
+          pixi run -e ${{ matrix.python-version }} test
+
+      - name: Test build
+        run: |
+          pixi run build
