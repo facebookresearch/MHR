@@ -31,46 +31,6 @@ from .utils import batch6DFromXYZ
 LOD = Literal[0, 1, 2, 3, 4, 5, 6]
 
 
-class MHRLinearBlendshapeModel(torch.nn.Module):
-    """Linear blendshape model used for identity and facial expressions."""
-
-    def __init__(
-        self,
-        blend_shapes: torch.Tensor,
-        mean_shape: torch.Tensor | None = None,
-    ) -> None:
-        super().__init__()
-
-        # mean_shape: [v=nVerts, k=3]
-        # blend_shapes: [c=num_coeff, v=nVerts, k=3]
-        if mean_shape is not None:
-            self.register_buffer(
-                "mean_shape", mean_shape.to(torch.float32).detach().clone()
-            )
-
-        self.register_buffer(
-            "blend_shapes", blend_shapes.to(torch.float32).detach().clone()
-        )
-
-    def forward(self, blend_coeffs: torch.Tensor) -> torch.Tensor:
-        """Apply coefficients to blendshape and add the mean if needed."""
-
-        assert (
-            len(blend_coeffs.shape) == 2
-        ), f"Expected batched (n_rows >= 1) blend coeffs with {self.blend_shapes.shape[0]} columns, got {blend_coeffs.shape}"
-
-        # blend_shapes: [c=num_shape_coeff, v=nVerts, k=3]
-        # blend_coeffs: [b=batch_size, c=num_shape_coeff]
-        batch_size = blend_coeffs.shape[0]
-        offsets = torch.einsum("cvk,bc->bvk", self.blend_shapes, blend_coeffs)
-        to_return = (
-            offsets
-            if not hasattr(self, "mean_shape")
-            else (offsets + self.mean_shape[None])
-        )
-        return to_return.reshape(batch_size, -1, 3)
-
-
 class MHRPoseCorrectivesModel(torch.nn.Module):
     """Non-linear pose correctives model."""
 
@@ -113,22 +73,20 @@ class MHR(torch.nn.Module):
     def __init__(
         self,
         character: pym_geometry.Character,
-        identity_model: MHRLinearBlendshapeModel,
-        face_expressions_model: MHRLinearBlendshapeModel | None,
+        face_expressions_model: torch_character.BlendShapeBase | None,
         pose_correctives_model: MHRPoseCorrectivesModel | None,
+        device: torch.device,
     ) -> None:
         super().__init__()
 
         # Save linear identity/facial expression models and pose correctives model
-        self.identity_model = identity_model
         self.face_expressions_model = face_expressions_model
         self.pose_correctives_model = pose_correctives_model
 
         # Save cpu/gpu characters
         self.character = character
-        self.character_torch = torch_character.Character(character).to(
-            identity_model.blend_shapes
-        )
+        # Note that this call also instantiates the identity model
+        self.character_torch = torch_character.Character(character).to(device)
 
     @staticmethod
     def _create_model(
@@ -142,16 +100,18 @@ class MHR(torch.nn.Module):
         blendshapes_data = np.load(blendshapes_path)
 
         # Identity model
+        # Load identity blendshapes and mean shape...
         mean_shape, identity_blendshapes = load_blendshapes(
             blendshapes_data, is_identity=True
         )
-
-        identity_model = MHRLinearBlendshapeModel(identity_blendshapes, mean_shape)
-        identity_model.to(device)
+        # ... and add them to the character
+        character = character.with_blend_shape(
+            pym_geometry.BlendShape.from_tensors(mean_shape, identity_blendshapes)
+        )
 
         # Face expressions model
         face_expressions_model = (
-            MHRLinearBlendshapeModel(
+            torch_character.BlendShapeBase(
                 load_blendshapes(blendshapes_data, is_identity=False)
             )
             if has_face_expression_blendshapes(blendshapes_data)
@@ -180,7 +140,7 @@ class MHR(torch.nn.Module):
             pose_correctives_model.to(device)
 
         return MHR(
-            character, identity_model, face_expressions_model, pose_correctives_model
+            character, face_expressions_model, pose_correctives_model, device=device
         )
 
     @staticmethod
@@ -191,14 +151,15 @@ class MHR(torch.nn.Module):
     ) -> "MHR":
         """Load character and model parameterization, and create full model."""
 
-        # Create character
+        # Create character by fetching rig and model parameterization paths
         fbx_path = get_mhr_fbx_path(lod)
         model_path = get_mhr_model_path()
         assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
         assert os.path.exists(model_path), f"Model file not found at {model_path}"
+        # Load rig and model parameterization
         character = pym_geometry.Character.load_fbx(fbx_path, model_path)
 
-        # Create full model
+        # Retrieve correctives paths and create full model
         blendshapes_path = get_mhr_blendshapes_path(lod)
         corrective_activation_path = (
             get_corrective_activation_path() if wants_pose_correctives else None
@@ -214,6 +175,20 @@ class MHR(torch.nn.Module):
             character, blendshapes_path, corrective_activation_path, device
         )
 
+    def get_num_identity_blendshapes(self) -> int:
+        """Return number of identity blendshapes."""
+
+        return self.character_torch.blend_shape.shape_vectors.shape[0]
+
+    def get_num_face_expression_blendshapes(self) -> int:
+        """Return number of face expression blendshapes."""
+
+        return (
+            self.face_expressions_model.shape_vectors.shape[0]
+            if self.face_expressions_model is not None
+            else 0
+        )
+
     def forward(
         self,
         identity_coeffs: torch.Tensor,
@@ -225,7 +200,7 @@ class MHR(torch.nn.Module):
 
         assert (
             len(identity_coeffs.shape) == 2
-        ), f"Expected batched (n_rows >= 1) identity coeffs with {self.identity_model.blend_shapes.shape[0]} columns, got {identity_coeffs.shape}"
+        ), f"Expected batched (n_rows >= 1) identity coeffs with {self.get_num_identity_blendshapes()} columns, got {identity_coeffs.shape}"
         apply_face_expressions = (
             self.face_expressions_model is not None and face_expr_coeffs is not None
         )
@@ -236,10 +211,10 @@ class MHR(torch.nn.Module):
         if apply_face_expressions:
             assert (
                 len(face_expr_coeffs.shape) == 2
-            ), f"Expected batched (n_rows >= 1) face expressions coeffs with {self.face_expressions_model.blend_shapes.shape[0]} columns, got {face_expr_coeffs.shape}"
+            ), f"Expected batched (n_rows >= 1) face expressions coeffs with {self.get_num_face_expression_blendshapes()} columns, got {face_expr_coeffs.shape}"
 
         # Compute identity vertices in rest pose
-        identity_rest_pose = self.identity_model.forward(identity_coeffs)
+        identity_rest_pose = self.character_torch.blend_shape.forward(identity_coeffs)
 
         # Compute joint parameters (local) and skeleton state (global)
         joint_parameters = self.character_torch.model_parameters_to_joint_parameters(

@@ -29,15 +29,15 @@ class TestMHRModel(unittest.TestCase):
     ) -> torch.Tensor:
         """Create random parameters and invoke model forward call."""
 
-        n_id_blendshapes = model.identity_model.blend_shapes.shape[0]
+        n_id_blendshapes = model.get_num_identity_blendshapes()
         n_params = len(model.character_torch.parameter_transform.parameter_names)
 
         coeffs = torch.rand(1, n_id_blendshapes).to(self.device)
         params = torch.rand(self.batch_size, n_params).to(self.device)
 
         face_coeffs = None
-        if apply_face_expressions:
-            n_face_expr_blendshapes = model.face_expressions_model.blend_shapes.shape[0]
+        n_face_expr_blendshapes = model.get_num_face_expression_blendshapes()
+        if apply_face_expressions and n_face_expr_blendshapes > 0:
             face_coeffs = torch.rand(self.batch_size, n_face_expr_blendshapes).to(
                 self.device
             )
