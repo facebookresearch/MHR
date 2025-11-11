@@ -377,7 +377,7 @@ class Conversion:
             source_faces = self._smpl_model.faces
         elif direction == "mhr2smpl":
             mapped_face_id, baryc_coords = self._load_surface_mapping_MHR2SMPL()
-            source_faces = self._mhr_model.character_gpu.mesh.faces.cpu().numpy()
+            source_faces = self._mhr_model.character.mesh.faces
         else:
             raise ValueError(
                 f"Invalid direction: {direction}. Must be 'smpl2mhr' or 'mhr2smpl'"
@@ -740,8 +740,8 @@ class Conversion:
         """
         # Get mhr mesh edges.
         mhr_template_mesh = trimesh.Trimesh(
-            self._mhr_model.character_gpu.mesh.rest_vertices.cpu().numpy(),
-            self._mhr_model.character_gpu.mesh.faces.cpu().numpy(),
+            self._mhr_model.character.mesh.vertices,
+            self._mhr_model.character.mesh.faces,
             process=False,
         )
         edges = self._to_tensor(mhr_template_mesh.edges_unique).int()
@@ -1123,7 +1123,7 @@ class Conversion:
         Returns:
             Tuple of (list of meshes, numpy array of vertices)
         """
-        faces = self._mhr_model.character_gpu.mesh.faces.cpu().numpy()
+        faces = self._mhr_model.character.mesh.faces
         meshes = []
         mhr_vertices = []
         num_samples = mhr_parameters["lbs_model_params"].shape[0]
