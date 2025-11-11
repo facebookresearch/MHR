@@ -1,0 +1,48 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.3
+        with:
+          cache: true
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Update version in pyproject.toml
+        run: |
+          sed -i 's/^version = .*/version = "${{ steps.get_version.outputs.version }}"/' pyproject.toml
+
+      - name: Update version in __init__.py
+        run: |
+          sed -i 's/__version__ = .*/__version__ = "${{ steps.get_version.outputs.version }}"/' mhr/__init__.py
+
+      - name: Build package
+        run: |
+          pixi run build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
