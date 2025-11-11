@@ -1,7 +1,9 @@
-#!/usr/bin/env fbpython
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
 
-# pyre-strict
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
 
 """Script to convert MHR model to TorchScript format.
 
@@ -9,13 +11,13 @@ Examples usage:
 # Custom LOD and model version
 buck2 run fbcode//frl/gemini/trinity_linear_model/experimental/mhr:jit_mhr -- \
     convert \
-    -o "manifold://body_assets_ca/tree/mhr.torchscript" \
+    -o "manifold://body_assets_ca/tree/mhr.pt" \
     -l 2 \
 
 # CPU device
 buck2 run fbcode//frl/gemini/trinity_linear_model/experimental/mhr:jit_mhr -- \
     convert \
-    -o "manifold://body_assets_ca/tree/mhr.torchscript" \
+    -o "manifold://body_assets_ca/tree/mhr.pt" \
 """
 
 import argparse
