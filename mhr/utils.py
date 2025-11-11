@@ -30,17 +30,20 @@ def batch6DFromXYZ(r, return_9D=False) -> torch.Tensor:
     sy = rs[..., 1]
     sz = rs[..., 2]
 
-    result = torch.empty(list(r.shape[:-1]) + [3, 3], dtype=r.dtype).to(r.device)
-
-    result[..., 0, 0] = cy * cz
-    result[..., 0, 1] = -cx * sz + sx * sy * cz
-    result[..., 0, 2] = sx * sz + cx * sy * cz
-    result[..., 1, 0] = cy * sz
-    result[..., 1, 1] = cx * cz + sx * sy * sz
-    result[..., 1, 2] = -sx * cz + cx * sy * sz
-    result[..., 2, 0] = -sy
-    result[..., 2, 1] = sx * cy
-    result[..., 2, 2] = cx * cy
+    result = torch.stack(
+        [
+            cy * cz,
+            -cx * sz + sx * sy * cz,
+            sx * sz + cx * sy * cz,
+            cy * sz,
+            cx * cz + sx * sy * sz,
+            -sx * cz + cx * sy * sz,
+            -sy,
+            sx * cy,
+            cx * cy,
+        ],
+        dim=-1,
+    ).reshape(list(r.shape[:-1]) + [3, 3])
 
     if not return_9D:
         return torch.cat([result[..., :, 0], result[..., :, 1]], dim=-1)
@@ -73,6 +76,14 @@ class SparseLinear(torch.nn.Module):
         else:
             self.bias = None
 
+        # Added the following line to cope with torch.jit.trace as a
+        # temporary solution to build torchscript model.
+        self.register_buffer(
+            "dense_weight",
+            torch.zeros(self.sparse_shape[0], self.sparse_shape[1]),
+            persistent=False,
+        )
+
         # Initialize
         for out_idx in range(out_channels):
             # By default, self.weight is initialized with kaiming,
@@ -94,13 +105,30 @@ class SparseLinear(torch.nn.Module):
             self.bias = torch.nn.Parameter(self.bias)
 
     def forward(self, x):
-        curr_weight = torch.sparse_coo_tensor(
-            self.sparse_indices, self.sparse_weight, self.sparse_shape
+        # We commented out the following lines because it conflicts with
+        # torch.jit.trace. Currently we can't use torch.jit.script because
+        # the current pymomentum does not support it. The use of sparse
+        # matrix does save memory and computation.
+
+        # curr_weight = torch.sparse_coo_tensor(
+        #     self.sparse_indices, self.sparse_weight, self.sparse_shape
+        # )
+        # if self.bias is None:
+        #     return (curr_weight @ x.T).T
+        # else:
+        #     return (curr_weight @ x.T).T + self.bias
+
+        # Set elements in self.dense_weight at sparse_indices to sparse_weight
+        self.dense_weight.zero_()  # Clear previous values
+        self.dense_weight[self.sparse_indices[0], self.sparse_indices[1]] = (
+            self.sparse_weight
         )
         if self.bias is None:
-            return (curr_weight @ x.T).T
+            return (self.dense_weight @ x.T).T
+            # return torch.sparse.mm(curr_weight, x.T).T
         else:
-            return (curr_weight @ x.T).T + self.bias
+            return (self.dense_weight @ x.T).T + self.bias
+            # return torch.sparse.mm(curr_weight, x.T).T + self.bias
 
     def __repr__(self):
         return f"SparseLinear(in_channels={self.in_channels}, out_channels={self.out_channels}, bias={self.bias is not None})"

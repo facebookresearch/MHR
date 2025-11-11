@@ -62,7 +62,7 @@ class MHRPoseCorrectivesModel(torch.nn.Module):
 
         pose_6d_feats = self._pose_features_from_joint_params(joint_parameters)
         pose_corrective_offsets = self.pose_dirs_predictor(pose_6d_feats).reshape(
-            len(pose_6d_feats), -1, 3
+            pose_6d_feats.shape[0], -1, 3
         )
         return pose_corrective_offsets
 
