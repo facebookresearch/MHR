@@ -7,6 +7,7 @@
 
 import os
 
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -18,6 +19,7 @@ import torch
 
 from .io import (
     get_corrective_activation_path,
+    get_default_asset_folder,
     get_mhr_blendshapes_path,
     get_mhr_fbx_path,
     get_mhr_model_path,
@@ -145,6 +147,7 @@ class MHR(torch.nn.Module):
 
     @staticmethod
     def from_files(
+        folder: Path = get_default_asset_folder(),
         device: torch.device = "cuda",
         lod: LOD = 1,
         wants_pose_correctives: bool = True,
@@ -152,17 +155,17 @@ class MHR(torch.nn.Module):
         """Load character and model parameterization, and create full model."""
 
         # Create character by fetching rig and model parameterization paths
-        fbx_path = get_mhr_fbx_path(lod)
-        model_path = get_mhr_model_path()
+        fbx_path = get_mhr_fbx_path(folder, lod)
+        model_path = get_mhr_model_path(folder)
         assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
         assert os.path.exists(model_path), f"Model file not found at {model_path}"
         # Load rig and model parameterization
         character = pym_geometry.Character.load_fbx(fbx_path, model_path)
 
         # Retrieve correctives paths and create full model
-        blendshapes_path = get_mhr_blendshapes_path(lod)
+        blendshapes_path = get_mhr_blendshapes_path(folder, lod)
         corrective_activation_path = (
-            get_corrective_activation_path() if wants_pose_correctives else None
+            get_corrective_activation_path(folder) if wants_pose_correctives else None
         )
         assert os.path.exists(
             blendshapes_path

@@ -21,35 +21,36 @@ POSE_CORRECTIVES_SPARSE_MASK_NAME = "posedirs_sparse_mask"
 POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 
 
-def get_mhr_fbx_path(lod: int) -> str:
+def get_default_asset_folder() -> Path:
+    """Return the path to the default MHR asset folder."""
+
+    return Path(__file__).parent.parent / "assets"
+
+def get_mhr_fbx_path(folder: Path, lod: int) -> str:
     """Return the path to the MHR fbx file."""
 
-    script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / f"rig_lod{lod}.fbx"
+    asset_path = folder / f"rig_lod{lod}.fbx"
     return str(asset_path)
 
 
-def get_mhr_model_path() -> str:
+def get_mhr_model_path(folder: Path) -> str:
     """Return the path to the MHR model definition file (same across LODs)."""
 
-    script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / "model_definition.model"
+    asset_path = folder / "model_definition.model"
     return str(asset_path)
 
 
-def get_mhr_blendshapes_path(lod: int) -> str:
+def get_mhr_blendshapes_path(folder: Path, lod: int) -> str:
     """Return the path to the file storing identity, facial expression, and pose-dependent blendshapes."""
 
-    script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / f"blendshapes_lod{lod}.npz"
+    asset_path = folder / f"blendshapes_lod{lod}.npz"
     return str(asset_path)
 
 
-def get_corrective_activation_path() -> str:
+def get_corrective_activation_path(folder: Path) -> str:
     """Return the path to the file storing activations for the pose-dependent correctives."""
 
-    script_dir = Path(__file__).parent
-    asset_path = script_dir.parent / "assets" / "corrective_activation.npz"
+    asset_path = folder / "corrective_activation.npz"
     return str(asset_path)
 
 
