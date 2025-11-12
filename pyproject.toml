@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 
 [project.urls]
 Homepage = "https://github.com/facebookresearch/MHR"
@@ -49,11 +49,9 @@ clean = "rm -rf dist build *.egg-info"
 python = ">=3.12,<3.14"
 pytest = ">=8.0"
 
-# Python 3.12 environment
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
 
-# Python 3.13 environment
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
