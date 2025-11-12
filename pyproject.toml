@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 
 [project.urls]
 Homepage = "https://github.com/facebookresearch/MHR"
