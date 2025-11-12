@@ -23,4 +23,4 @@ pixi run test
 
 ## License
 
-MHR is licensed under the Apache Software License 2.0, as found in the LICENSE file.
+MHR is licensed under the Apache Software License 2.0, as found in the [LICENSE](LICENSE) file.
