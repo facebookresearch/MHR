@@ -26,6 +26,7 @@ def get_default_asset_folder() -> Path:
 
     return Path(__file__).parent.parent / "assets"
 
+
 def get_mhr_fbx_path(folder: Path, lod: int) -> str:
     """Return the path to the MHR fbx file."""
 
@@ -102,7 +103,7 @@ def has_face_expression_blendshapes(data: Dict[str, np.ndarray]) -> bool:
 
 
 def has_pose_corrective_blendshapes(data: Dict[str, np.ndarray]) -> bool:
-    """Check if the data contains pose-depdendent correctivesß."""
+    """Check if the data contains pose-dependent correctives."""
 
     return POSE_CORRECTIVES_COMPONENTS_NAME in data
 

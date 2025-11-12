@@ -7,11 +7,35 @@
 
 import unittest
 
-from typing import get_args
+import pymomentum.geometry as pym_geometry
 
 import torch
 
 from mhr.mhr import LOD, MHR
+from pymomentum.torch.character import BlendShapeBase
+
+
+class MHRPoseCorrectivesModelDummy(torch.nn.Module):
+    """Non-linear pose correctives model used for tests."""
+
+    def __init__(self, num_verts: int) -> None:
+        super().__init__()
+        self.num_verts = num_verts
+
+    def forward(self, joint_parameters: torch.Tensor) -> torch.Tensor:
+        return torch.ones((joint_parameters.shape[0], self.num_verts, 3)).to(
+            joint_parameters
+        )
+
+
+def _build_blend_shape_base(
+    c: pym_geometry.Character,
+) -> BlendShapeBase:
+    torch.manual_seed(0)
+    n_pts = c.mesh.n_vertices
+    n_blend = 4
+    shape_vectors = torch.rand(n_blend, n_pts, 3)
+    return BlendShapeBase(shape_vectors)
 
 
 class TestMHRModel(unittest.TestCase):
@@ -50,40 +74,66 @@ class TestMHRModel(unittest.TestCase):
         )
 
     def test_model_with_pose_correctives(self):
-        """Test body model loading and forward call, applying pose correctives."""
+        """Test body model construction and forward call, applying pose correctives."""
 
-        for lod in get_args(LOD):
-            mhr_model = MHR.from_files(device=self.device, lod=lod)
-            res = self._instantiate_model(mhr_model)
-            self.assertTrue(res.shape[0] == self.batch_size)
+        character = pym_geometry.create_test_character(with_blendshapes=True)
+        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
+        face_expressions_model = _build_blend_shape_base(character)
+        mhr_model = MHR(
+            character,
+            face_expressions_model,
+            pose_correctives_model,
+            device=self.device,
+        )
+        res = self._instantiate_model(mhr_model)
+        self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_loading_pose_correctives(self):
-        """Test body model loading and forward call, without loading pose correctives."""
+        """Test body model construction and forward call, without loading pose correctives."""
 
-        for lod in get_args(LOD):
-            mhr_model = MHR.from_files(
-                device=self.device, lod=lod, wants_pose_correctives=False
-            )
-            res = self._instantiate_model(mhr_model)
-            self.assertTrue(res.shape[0] == self.batch_size)
+        character = pym_geometry.create_test_character(with_blendshapes=True)
+        pose_correctives_model = None
+        face_expressions_model = _build_blend_shape_base(character)
+        mhr_model = MHR(
+            character,
+            face_expressions_model,
+            pose_correctives_model,
+            device=self.device,
+        )
+        res = self._instantiate_model(mhr_model)
+        self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives(self):
-        """Test body model loading and forward call, without applying pose correctives."""
+        """Test body model construction and forward call, without applying pose correctives."""
 
-        for lod in get_args(LOD):
-            mhr_model = MHR.from_files(device=self.device, lod=lod)
-            res = self._instantiate_model(mhr_model, apply_pose_correctives=False)
-            self.assertTrue(res.shape[0] == self.batch_size)
+        character = pym_geometry.create_test_character(with_blendshapes=True)
+        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
+        face_expressions_model = _build_blend_shape_base(character)
+        mhr_model = MHR(
+            character,
+            face_expressions_model,
+            pose_correctives_model,
+            device=self.device,
+        )
+        res = self._instantiate_model(mhr_model, apply_pose_correctives=False)
+        self.assertTrue(res.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives_and_face_expr(self):
-        """Test body model loading and forward call, without applying pose correctives and facial expressions."""
+        """Test body model construction and forward call, without applying pose correctives and facial expressions."""
 
-        for lod in get_args(LOD):
-            mhr_model = MHR.from_files(device=self.device, lod=lod)
-            res = self._instantiate_model(
-                mhr_model, apply_face_expressions=False, apply_pose_correctives=False
-            )
-            self.assertTrue(res.shape[0] == self.batch_size)
+        character = pym_geometry.create_test_character(with_blendshapes=True)
+        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
+        face_expressions_model = _build_blend_shape_base(character)
+        mhr_model = MHR(
+            character,
+            face_expressions_model,
+            pose_correctives_model,
+            device=self.device,
+        )
+        res = self._instantiate_model(
+            mhr_model, apply_face_expressions=False, apply_pose_correctives=False
+        )
+        self.assertTrue(res.shape[0] == self.batch_size)
 
 
 if __name__ == "__main__":
