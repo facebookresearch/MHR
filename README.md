@@ -1,6 +1,6 @@
 # MHR - Momentum Human Rig
 
-A minimal Python package for human motion representation.
+A minimal Python package for the Momentum Human Rig.
 
 ## Installation
 
@@ -23,4 +23,4 @@ pixi run test
 
 ## License
 
-MIT
+MHR is licensed under the Apache Software License 2.0, as found in the LICENSE file.
