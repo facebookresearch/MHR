@@ -78,16 +78,22 @@ jobs:
         with:
           cuda-version: ${{ matrix.cuda_version }}
 
-      - name: Set up pixi
-        uses: prefix-dev/setup-pixi@v0.9.3
+      - name: Setup Micromamba
+        uses: mamba-org/setup-micromamba@v2
         with:
-          environments: ${{ matrix.pixi_env }}
-          cache: true
+          environment-name: conda-build-env
+          create-args: >-
+            python=3.12
+            conda-build
 
       - name: Test conda build
         run: |
-          pixi run -e ${{ matrix.pixi_env }} conda-build
+          conda build conda/ --output-folder ${TMPDIR:-/tmp}/mhr-conda-build/ --croot ${TMPDIR:-/tmp}/mhr-conda-work/ -c conda-forge -c pytorch
+        shell: micromamba-shell {0}
 
       - name: Test conda package installation
         run: |
-          pixi run -e ${{ matrix.pixi_env }} conda-test
+          conda create -n mhr-test -y -c ${TMPDIR:-/tmp}/mhr-conda-build/ -c conda-forge -c pytorch mhr
+          conda run -n mhr-test pytest tests/ -v
+          conda env remove -n mhr-test -y
+        shell: micromamba-shell {0}

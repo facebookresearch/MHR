@@ -28,17 +28,25 @@ conda-build = 'bash -c "conda build conda/ --output-folder ${TMPDIR:-/tmp}/mhr-c
 conda-test = { cmd = 'bash -c "conda create -n mhr-test -y -c ${TMPDIR:-/tmp}/mhr-conda-build/ -c conda-forge -c pytorch mhr && conda run -n mhr-test pytest tests/ -v && conda env remove -n mhr-test -y"', depends-on = ["conda-build"] }
 conda-clean = 'bash -c "rm -rf ${TMPDIR:-/tmp}/mhr-conda-build/ ${TMPDIR:-/tmp}/mhr-conda-work/"'
 
-[feature.py312.dependencies]
-python = "3.12.*"
+[feature.py312]
+dependencies = { python = "3.12.*" }
 
-[feature.py313.dependencies]
-python = "3.13.*"
+[feature.py313]
+dependencies = { python = "3.13.*" }
 
-[feature.cuda129.dependencies]
-python = "3.12.*"
+[feature.py312-cuda129]
+platforms = ["linux-64"]
+system-requirements = { cuda = "12" }
+dependencies = { python = "3.12.*" }
+
+[feature.py313-cuda129]
+platforms = ["linux-64"]
+system-requirements = { cuda = "12" }
+dependencies = { python = "3.13.*" }
 
 [environments]
 default = ["py312"]
 py312 = ["py312"]
 py313 = ["py313"]
-py312-cuda129 = ["cuda129"]
+py312-cuda129 = ["py312-cuda129"]
+py313-cuda129 = ["py313-cuda129"]
