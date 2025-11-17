@@ -29,16 +29,6 @@ jobs:
             platform: linux-64
             python-version: py313
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 32768
-          remove-dotnet: true
-          remove-android: true
-          remove-haskell: true
-          remove-codeql: true
-          remove-docker-images: true
-
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -56,12 +46,22 @@ jobs:
         run: |
           pixi run build
 
+  conda-build:
+    name: conda-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.3
+        with:
+          cache: true
+
       - name: Test conda build
         run: |
           pixi run conda-build
-          pixi run conda-clean
 
       - name: Test conda package installation
         run: |
           pixi run conda-test
-          pixi run conda-clean
