@@ -1,0 +1,52 @@
+{% set name = "mhr" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv
+
+requirements:
+  host:
+    - python >=3.12
+    - pip
+    - setuptools
+    - wheel
+  run:
+    - python >=3.12
+    - pymomentum >=0.1.84
+    - scikit-learn >=1.7.2,<2
+    - pytorch
+    - tqdm >=4.67.1,<5
+    - trimesh >=4.8.3,<5
+
+test:
+  imports:
+    - mhr
+  requires:
+    - pytest >=8.0
+  source_files:
+    - tests/
+  commands:
+    - pytest tests/ -v
+
+about:
+  home: https://github.com/facebookresearch/MHR
+  license: Apache-2.0
+  license_file: LICENSE
+  summary: Momentum Human Rig
+  description: |
+    Momentum Human Rig (MHR) package
+  dev_url: https://github.com/facebookresearch/MHR
+  doc_url: https://github.com/facebookresearch/MHR
+
+extra:
+  recipe-maintainers:
+    - jeongseok-meta

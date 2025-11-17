@@ -21,8 +21,8 @@ Homepage = "https://github.com/facebookresearch/MHR"
 Repository = "https://github.com/facebookresearch/MHR"
 
 [build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.0", "wheel"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["mhr"]
@@ -44,10 +44,14 @@ build = "python -m build"
 publish = "twine upload --repository mhr dist/*"
 publish-test = "twine upload --repository testpypi dist/*"
 clean = "rm -rf dist build *.egg-info"
+conda-build = "conda build conda/ --output-folder /tmp/mhr-conda-build/ --croot /tmp/mhr-conda-work/ -c conda-forge -c pytorch"
+conda-test = { cmd = "conda create -n mhr-test -y -c /tmp/mhr-conda-build/ -c conda-forge -c pytorch mhr && conda run -n mhr-test pytest tests/ -v && conda env remove -n mhr-test -y", depends-on = ["conda-build"] }
+conda-clean = "rm -rf /tmp/mhr-conda-build/ /tmp/mhr-conda-work/"
 
 [tool.pixi.dependencies]
 python = ">=3.12,<3.14"
 pytest = ">=8.0"
+conda-build = ">=24.0"
 
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
