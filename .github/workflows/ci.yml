@@ -46,10 +46,21 @@ jobs:
         run: |
           pixi run build
 
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          docker system prune -af
+          df -h
+
       - name: Test conda build
         run: |
           pixi run conda-build
+          pixi run conda-clean
 
       - name: Test conda package installation
         run: |
           pixi run conda-test
+          pixi run conda-clean
