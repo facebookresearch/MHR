@@ -45,3 +45,11 @@ jobs:
       - name: Test build
         run: |
           pixi run build
+
+      - name: Test conda build
+        run: |
+          pixi run conda-build
+
+      - name: Test conda package installation
+        run: |
+          pixi run conda-test

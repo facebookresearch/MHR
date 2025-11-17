@@ -44,9 +44,9 @@ build = "python -m build"
 publish = "twine upload --repository mhr dist/*"
 publish-test = "twine upload --repository testpypi dist/*"
 clean = "rm -rf dist build *.egg-info"
-conda-build = "conda build conda/ --output-folder /tmp/mhr-conda-build/ --croot /tmp/mhr-conda-work/ -c conda-forge -c pytorch"
-conda-test = { cmd = "conda create -n mhr-test -y -c /tmp/mhr-conda-build/ -c conda-forge -c pytorch mhr && conda run -n mhr-test pytest tests/ -v && conda env remove -n mhr-test -y", depends-on = ["conda-build"] }
-conda-clean = "rm -rf /tmp/mhr-conda-build/ /tmp/mhr-conda-work/"
+conda-build = 'bash -c "conda build conda/ --output-folder ${TMPDIR:-/tmp}/mhr-conda-build/ --croot ${TMPDIR:-/tmp}/mhr-conda-work/ -c conda-forge -c pytorch"'
+conda-test = { cmd = 'bash -c "conda create -n mhr-test -y -c ${TMPDIR:-/tmp}/mhr-conda-build/ -c conda-forge -c pytorch mhr && conda run -n mhr-test pytest tests/ -v && conda env remove -n mhr-test -y"', depends-on = ["conda-build"] }
+conda-clean = 'bash -c "rm -rf ${TMPDIR:-/tmp}/mhr-conda-build/ ${TMPDIR:-/tmp}/mhr-conda-work/"'
 
 [tool.pixi.dependencies]
 python = ">=3.12,<3.14"
