@@ -27,43 +27,6 @@ requires = ["setuptools>=61.0", "wheel"]
 [tool.hatch.build.targets.wheel]
 packages = ["mhr"]
 
-[tool.pixi.workspace]
-channels = ["conda-forge", "pytorch"]
-platforms = ["linux-64"]
-
-[tool.pixi.system-requirements]
-libc = { family = "glibc", version = "2.39" }
-
-[tool.pixi.pypi-dependencies]
-build = ">=1.0"
-twine = ">=5.0"
-
-[tool.pixi.tasks]
-test = "pytest tests/ -v"
-build = "python -m build"
-publish = "twine upload --repository mhr dist/*"
-publish-test = "twine upload --repository testpypi dist/*"
-clean = "rm -rf dist build *.egg-info"
-conda-build = 'bash -c "conda build conda/ --output-folder ${TMPDIR:-/tmp}/mhr-conda-build/ --croot ${TMPDIR:-/tmp}/mhr-conda-work/ -c conda-forge -c pytorch"'
-conda-test = { cmd = 'bash -c "conda create -n mhr-test -y -c ${TMPDIR:-/tmp}/mhr-conda-build/ -c conda-forge -c pytorch mhr && conda run -n mhr-test pytest tests/ -v && conda env remove -n mhr-test -y"', depends-on = ["conda-build"] }
-conda-clean = 'bash -c "rm -rf ${TMPDIR:-/tmp}/mhr-conda-build/ ${TMPDIR:-/tmp}/mhr-conda-work/"'
-
-[tool.pixi.dependencies]
-python = ">=3.12,<3.14"
-pytest = ">=8.0"
-conda-build = ">=24.0"
-
-[tool.pixi.feature.py312.dependencies]
-python = "3.12.*"
-
-[tool.pixi.feature.py313.dependencies]
-python = "3.13.*"
-
-[tool.pixi.environments]
-default = ["py312"]
-py312 = ["py312"]
-py313 = ["py313"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
