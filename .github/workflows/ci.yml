@@ -60,7 +60,6 @@ jobs:
       FULL_CUDA_VERSION: ${{ matrix.cuda_version }}
     steps:
       - name: Maximize build space
-        if: ${{ contains(matrix.pixi_env, 'cuda') || contains(matrix.pixi_env, 'gpu') }}
         uses: easimon/maximize-build-space@master
         with:
           root-reserve-mb: 32768
