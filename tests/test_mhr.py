@@ -20,7 +20,6 @@ import pymomentum.geometry as pym_geometry
 import torch
 
 from mhr.mhr import LOD, MHR, NUM_FACE_EXPRESSION_BLENDSHAPES, NUM_IDENTITY_BLENDSHAPES
-from pymomentum.torch.character import BlendShape
 
 
 class MHRPoseCorrectivesModelDummy(torch.nn.Module):
@@ -38,7 +37,7 @@ class MHRPoseCorrectivesModelDummy(torch.nn.Module):
 
 def _build_blend_shape(
     c: pym_geometry.Character,
-) -> BlendShape:
+) -> pym_geometry.BlendShape:
     torch.manual_seed(0)
     n_pts = c.mesh.n_vertices
     n_blend = 4
@@ -46,10 +45,7 @@ def _build_blend_shape(
     shape_vectors = torch.rand(
         NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES, n_pts, 3
     )
-    import pdb
-
-    pdb.set_trace()
-    return BlendShape(shape_base, shape_vectors)
+    return pym_geometry.BlendShape.from_tensors(shape_base, shape_vectors)
 
 
 class TestMHRModel(unittest.TestCase):
