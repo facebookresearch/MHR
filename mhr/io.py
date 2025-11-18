@@ -14,7 +14,7 @@
 
 
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from typing import Dict
 
 import numpy as np
 import torch
@@ -22,9 +22,6 @@ import torch
 from .utils import SparseLinear
 
 
-FACE_EXPR_COMPONENTS_NAME = "expressions_blendshapes"
-IDENTITY_MEAN_NAME = "mean"
-IDENTITY_COMPONENTS_NAME = "identity_blendshapes"
 POSE_CORRECTIVES_SPARSE_MASK_NAME = "posedirs_sparse_mask"
 POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 
@@ -104,27 +101,7 @@ def load_pose_dirs_predictor(
     return posedirs
 
 
-def has_face_expression_blendshapes(data: Dict[str, np.ndarray]) -> bool:
-    """Check if the data contains facial expression blendshapes."""
-
-    return FACE_EXPR_COMPONENTS_NAME in data
-
-
 def has_pose_corrective_blendshapes(data: Dict[str, np.ndarray]) -> bool:
     """Check if the data contains pose-dependent correctives."""
 
     return POSE_CORRECTIVES_COMPONENTS_NAME in data
-
-
-def load_blendshapes(
-    data: Dict[str, np.ndarray], is_identity: bool
-) -> Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
-    """Load and reshape identity/facial expressions blendshapes."""
-
-    if is_identity:
-        mean_shape = torch.from_numpy(data[IDENTITY_MEAN_NAME].reshape((-1, 3)))
-        components = torch.from_numpy(data[IDENTITY_COMPONENTS_NAME])
-        return mean_shape, components
-    else:
-        components = torch.from_numpy(data[FACE_EXPR_COMPONENTS_NAME])
-        return components

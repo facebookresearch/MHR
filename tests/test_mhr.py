@@ -19,8 +19,8 @@ import pymomentum.geometry as pym_geometry
 
 import torch
 
-from mhr.mhr import LOD, MHR
-from pymomentum.torch.character import BlendShapeBase
+from mhr.mhr import LOD, MHR, NUM_FACE_EXPRESSION_BLENDSHAPES, NUM_IDENTITY_BLENDSHAPES
+from pymomentum.torch.character import BlendShape
 
 
 class MHRPoseCorrectivesModelDummy(torch.nn.Module):
@@ -36,14 +36,20 @@ class MHRPoseCorrectivesModelDummy(torch.nn.Module):
         )
 
 
-def _build_blend_shape_base(
+def _build_blend_shape(
     c: pym_geometry.Character,
-) -> BlendShapeBase:
+) -> BlendShape:
     torch.manual_seed(0)
     n_pts = c.mesh.n_vertices
     n_blend = 4
-    shape_vectors = torch.rand(n_blend, n_pts, 3)
-    return BlendShapeBase(shape_vectors)
+    shape_base = torch.rand(n_pts, 3)
+    shape_vectors = torch.rand(
+        NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES, n_pts, 3
+    )
+    import pdb
+
+    pdb.set_trace()
+    return BlendShape(shape_base, shape_vectors)
 
 
 class TestMHRModel(unittest.TestCase):
@@ -84,12 +90,11 @@ class TestMHRModel(unittest.TestCase):
     def test_model_with_pose_correctives(self):
         """Test body model construction and forward call, applying pose correctives."""
 
-        character = pym_geometry.create_test_character(with_blendshapes=True)
+        character = pym_geometry.create_test_character()
+        character = character.with_blend_shape(_build_blend_shape(character))
         pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        face_expressions_model = _build_blend_shape_base(character)
         mhr_model = MHR(
             character,
-            face_expressions_model,
             pose_correctives_model,
             device=self.device,
         )
@@ -99,12 +104,11 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_loading_pose_correctives(self):
         """Test body model construction and forward call, without loading pose correctives."""
 
-        character = pym_geometry.create_test_character(with_blendshapes=True)
+        character = pym_geometry.create_test_character()
+        character = character.with_blend_shape(_build_blend_shape(character))
         pose_correctives_model = None
-        face_expressions_model = _build_blend_shape_base(character)
         mhr_model = MHR(
             character,
-            face_expressions_model,
             pose_correctives_model,
             device=self.device,
         )
@@ -114,12 +118,11 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_applying_pose_correctives(self):
         """Test body model construction and forward call, without applying pose correctives."""
 
-        character = pym_geometry.create_test_character(with_blendshapes=True)
+        character = pym_geometry.create_test_character()
+        character = character.with_blend_shape(_build_blend_shape(character))
         pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        face_expressions_model = _build_blend_shape_base(character)
         mhr_model = MHR(
             character,
-            face_expressions_model,
             pose_correctives_model,
             device=self.device,
         )
@@ -129,12 +132,11 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_applying_pose_correctives_and_face_expr(self):
         """Test body model construction and forward call, without applying pose correctives and facial expressions."""
 
-        character = pym_geometry.create_test_character(with_blendshapes=True)
+        character = pym_geometry.create_test_character()
+        character = character.with_blend_shape(_build_blend_shape(character))
         pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        face_expressions_model = _build_blend_shape_base(character)
         mhr_model = MHR(
             character,
-            face_expressions_model,
             pose_correctives_model,
             device=self.device,
         )
