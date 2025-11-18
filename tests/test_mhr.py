@@ -94,8 +94,9 @@ class TestMHRModel(unittest.TestCase):
             pose_correctives_model,
             device=self.device,
         )
-        res = self._instantiate_model(mhr_model)
-        self.assertTrue(res.shape[0] == self.batch_size)
+        res_verts, res_skel = self._instantiate_model(mhr_model)
+        self.assertTrue(res_verts.shape[0] == self.batch_size)
+        self.assertTrue(res_skel.shape[0] == self.batch_size)
 
     def test_model_without_loading_pose_correctives(self):
         """Test body model construction and forward call, without loading pose correctives."""
@@ -108,8 +109,9 @@ class TestMHRModel(unittest.TestCase):
             pose_correctives_model,
             device=self.device,
         )
-        res = self._instantiate_model(mhr_model)
-        self.assertTrue(res.shape[0] == self.batch_size)
+        res_verts, res_skel = self._instantiate_model(mhr_model)
+        self.assertTrue(res_verts.shape[0] == self.batch_size)
+        self.assertTrue(res_skel.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives(self):
         """Test body model construction and forward call, without applying pose correctives."""
@@ -122,8 +124,9 @@ class TestMHRModel(unittest.TestCase):
             pose_correctives_model,
             device=self.device,
         )
-        res = self._instantiate_model(mhr_model, apply_pose_correctives=False)
-        self.assertTrue(res.shape[0] == self.batch_size)
+        res_verts, res_skel = self._instantiate_model(mhr_model, apply_pose_correctives=False)
+        self.assertTrue(res_verts.shape[0] == self.batch_size)
+        self.assertTrue(res_skel.shape[0] == self.batch_size)
 
     def test_model_without_applying_pose_correctives_and_face_expr(self):
         """Test body model construction and forward call, without applying pose correctives and facial expressions."""
@@ -136,10 +139,11 @@ class TestMHRModel(unittest.TestCase):
             pose_correctives_model,
             device=self.device,
         )
-        res = self._instantiate_model(
+        res_verts, res_skel = self._instantiate_model(
             mhr_model, apply_face_expressions=False, apply_pose_correctives=False
         )
-        self.assertTrue(res.shape[0] == self.batch_size)
+        self.assertTrue(res_verts.shape[0] == self.batch_size)
+        self.assertTrue(res_skel.shape[0] == self.batch_size)
 
 
 if __name__ == "__main__":

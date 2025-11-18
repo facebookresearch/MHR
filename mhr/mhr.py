@@ -186,7 +186,7 @@ class MHR(torch.nn.Module):
         model_parameters: torch.Tensor,
         face_expr_coeffs: torch.Tensor | None,
         apply_correctives: bool = True,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute vertices given input parameters."""
 
         # identity_coeffs: [b=batch_size, c=num_shape_coeff]
@@ -236,7 +236,7 @@ class MHR(torch.nn.Module):
             skel_state=skel_state, rest_vertex_positions=linear_model_unposed
         )
 
-        return verts
+        return verts, skel_state
 
 
 def set_blendshape_parameter_sets(character: pym_geometry.Character) -> None:
