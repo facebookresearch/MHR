@@ -35,21 +35,21 @@ def get_default_asset_folder() -> Path:
 def get_mhr_fbx_path(folder: Path, lod: int) -> str:
     """Return the path to the MHR fbx file."""
 
-    asset_path = folder / f"rig_lod{lod}.fbx"
+    asset_path = folder / f"lod{lod}.fbx"
     return str(asset_path)
 
 
 def get_mhr_model_path(folder: Path) -> str:
     """Return the path to the MHR model definition file (same across LODs)."""
 
-    asset_path = folder / "model_definition.model"
+    asset_path = folder / "compact_v6_1.model"
     return str(asset_path)
 
 
 def get_mhr_blendshapes_path(folder: Path, lod: int) -> str:
     """Return the path to the file storing pose-dependent blendshapes."""
 
-    asset_path = folder / f"blendshapes_lod{lod}.npz"
+    asset_path = folder / f"corrective_blendshapes_lod{lod}.npz"
     return str(asset_path)
 
 
