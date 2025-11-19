@@ -198,7 +198,7 @@ class MHR(torch.nn.Module):
         """Compute vertices given input parameters."""
 
         # identity_coeffs: [b=batch_size, c=num_shape_coeff]
-        # model_parameters: [b=batch_size, c=num_model_params]
+        # model_parameters: [b=batch_size, c=num_model_params (rigid, pose, scale)]
         # face_expr_coeffs: [b=batch_size, c=num_face_coeff]
         assert (
             len(identity_coeffs.shape) == 2
