@@ -155,7 +155,7 @@ pytest --cov=mhr tests/
 
 ## Inferring MHR parameters from images
 
-If you want to do Human Motion Recovery with MHR, head to [Sam3D][https://github.com/facebookresearch/sam-3d-body].
+If you want to do Human Motion Recovery with MHR, head to [Sam3D](https://github.com/facebookresearch/sam-3d-body).
 
 ## Contributing
 
