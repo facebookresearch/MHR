@@ -166,11 +166,13 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 If you use MHR in your research, please cite:
 <span style="color: red;">To be completed, add the tech report.</span>
 ```bibtex
-@software{mhr2025,
-  title = {MHR: Momentum Human Rig},
-  author = {Meta Reality Labs},
-  year = {2025},
-  url = {https://github.com/facebookresearch/mhr}
+}
+@inproceedings{MHR:2025,
+	author    = {Ferguson, Aaron and Osman, Ahmed A. A. and Bescos, Berta and Stoll, Carsten and Twigg, Chris and Lassner, Christoph and Otte, David and Vignola, Eric and Bogo, Federica and Santesteban, Igor and Romero, Javier and Zarate, Jenna and Lee, Jeongseok and Park, Jinhyung and Yang, Jinlong and Doublestein, John and Venkateshan, Kishore and Kitani, Kris and Kavan, Ladislav and Dal Farra, Marco and Hu, Matthew and Cioffi, Matthew and Fabris, Michael and Ranieri, Michael and Modarres, Mohammad and Kadlecek, Petr and Khirodkar, Rawal and Abdrashitov, Rinat and Prévost, Romain and Rajbhandari, Roman and Mallet, Ronald and Pearsall, Russel and Kao, Sandy and Kumar, Sanjeev and Parrish, Scott and Saito, Shunsuke and Wang, Te-Li and Tung, Tony and Dong, Yuan and Chen, Yuhua and Xu, Yuanlu and Ye, Yuting and Jiang, Zhongshi},
+	title     = {MHR: Momentum Human Rig},
+	booktitle = {Tech Report},
+	year      = {2025},
+	url       = {https://arxiv.org/abs/your-arxiv-id}
 }
 ```
 
