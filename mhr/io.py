@@ -14,7 +14,7 @@
 
 
 from pathlib import Path
-from typing import Dict, Tuple, Union
+from typing import Dict
 
 import numpy as np
 import torch
@@ -22,9 +22,6 @@ import torch
 from .utils import SparseLinear
 
 
-FACE_EXPR_COMPONENTS_NAME = "expressions_blendshapes"
-IDENTITY_MEAN_NAME = "mean"
-IDENTITY_COMPONENTS_NAME = "identity_blendshapes"
 POSE_CORRECTIVES_SPARSE_MASK_NAME = "posedirs_sparse_mask"
 POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 
@@ -38,21 +35,21 @@ def get_default_asset_folder() -> Path:
 def get_mhr_fbx_path(folder: Path, lod: int) -> str:
     """Return the path to the MHR fbx file."""
 
-    asset_path = folder / f"rig_lod{lod}.fbx"
+    asset_path = folder / f"lod{lod}.fbx"
     return str(asset_path)
 
 
 def get_mhr_model_path(folder: Path) -> str:
     """Return the path to the MHR model definition file (same across LODs)."""
 
-    asset_path = folder / "model_definition.model"
+    asset_path = folder / "compact_v6_1.model"
     return str(asset_path)
 
 
 def get_mhr_blendshapes_path(folder: Path, lod: int) -> str:
-    """Return the path to the file storing identity, facial expression, and pose-dependent blendshapes."""
+    """Return the path to the file storing pose-dependent blendshapes."""
 
-    asset_path = folder / f"blendshapes_lod{lod}.npz"
+    asset_path = folder / f"corrective_blendshapes_lod{lod}.npz"
     return str(asset_path)
 
 
@@ -104,27 +101,7 @@ def load_pose_dirs_predictor(
     return posedirs
 
 
-def has_face_expression_blendshapes(data: Dict[str, np.ndarray]) -> bool:
-    """Check if the data contains facial expression blendshapes."""
-
-    return FACE_EXPR_COMPONENTS_NAME in data
-
-
 def has_pose_corrective_blendshapes(data: Dict[str, np.ndarray]) -> bool:
     """Check if the data contains pose-dependent correctives."""
 
     return POSE_CORRECTIVES_COMPONENTS_NAME in data
-
-
-def load_blendshapes(
-    data: Dict[str, np.ndarray], is_identity: bool
-) -> Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
-    """Load and reshape identity/facial expressions blendshapes."""
-
-    if is_identity:
-        mean_shape = torch.from_numpy(data[IDENTITY_MEAN_NAME].reshape((-1, 3)))
-        components = torch.from_numpy(data[IDENTITY_COMPONENTS_NAME])
-        return mean_shape, components
-    else:
-        components = torch.from_numpy(data[FACE_EXPR_COMPONENTS_NAME])
-        return components

@@ -31,14 +31,14 @@ from .io import (
     get_mhr_blendshapes_path,
     get_mhr_fbx_path,
     get_mhr_model_path,
-    has_face_expression_blendshapes,
     has_pose_corrective_blendshapes,
-    load_blendshapes,
     load_pose_dirs_predictor,
 )
 from .utils import batch6DFromXYZ
 
 LOD = Literal[0, 1, 2, 3, 4, 5, 6]
+NUM_IDENTITY_BLENDSHAPES = 45
+NUM_FACE_EXPRESSION_BLENDSHAPES = 72
 
 
 class MHRPoseCorrectivesModel(torch.nn.Module):
@@ -83,19 +83,17 @@ class MHR(torch.nn.Module):
     def __init__(
         self,
         character: pym_geometry.Character,
-        face_expressions_model: torch_character.BlendShapeBase | None,
         pose_correctives_model: MHRPoseCorrectivesModel | None,
         device: torch.device,
     ) -> None:
         super().__init__()
 
-        # Save linear identity/facial expression models and pose correctives model
-        self.face_expressions_model = face_expressions_model
+        # Save pose correctives model
         self.pose_correctives_model = pose_correctives_model
 
         # Save cpu/gpu characters
         self.character = character
-        # Note that this call also instantiates the identity model
+        # Note that this call also instantiates the identity and face expressions model
         self.character_torch = torch_character.Character(character).to(device)
 
     @staticmethod
@@ -108,27 +106,6 @@ class MHR(torch.nn.Module):
         """Create MHR model from the given character and asset paths."""
 
         blendshapes_data = np.load(blendshapes_path)
-
-        # Identity model
-        # Load identity blendshapes and mean shape...
-        mean_shape, identity_blendshapes = load_blendshapes(
-            blendshapes_data, is_identity=True
-        )
-        # ... and add them to the character
-        character = character.with_blend_shape(
-            pym_geometry.BlendShape.from_tensors(mean_shape, identity_blendshapes)
-        )
-
-        # Face expressions model
-        face_expressions_model = (
-            torch_character.BlendShapeBase(
-                load_blendshapes(blendshapes_data, is_identity=False)
-            )
-            if has_face_expression_blendshapes(blendshapes_data)
-            else None
-        )
-        if face_expressions_model is not None:
-            face_expressions_model.to(device)
 
         # Pose correctives model
         pose_correctives_model = None
@@ -149,9 +126,7 @@ class MHR(torch.nn.Module):
         if pose_correctives_model is not None:
             pose_correctives_model.to(device)
 
-        return MHR(
-            character, face_expressions_model, pose_correctives_model, device=device
-        )
+        return MHR(character, pose_correctives_model, device=device)
 
     @staticmethod
     def from_files(
@@ -168,7 +143,24 @@ class MHR(torch.nn.Module):
         assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
         assert os.path.exists(model_path), f"Model file not found at {model_path}"
         # Load rig and model parameterization
-        character = pym_geometry.Character.load_fbx(fbx_path, model_path)
+        character = pym_geometry.Character.load_fbx(
+            fbx_path, model_path, load_blendshapes=True
+        )
+        assert (
+            character.blend_shape.shape_vectors.shape[0]
+            == NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES
+        ), f"Expected {NUM_IDENTITY_BLENDSHAPES} identity and {NUM_FACE_EXPRESSION_BLENDSHAPES} face expression blendshapes, got {character.blend_shape.shape_vectors.shape[0]}"
+
+        n_params = character.parameter_transform.size
+        character = character.with_blend_shape(
+            character.blend_shape
+        )  # update parameter transform to include blendshape coefficients
+        # Assert number of parameters now include blendshape coefficients
+        assert character.parameter_transform.size == (
+            n_params + NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES
+        )
+        # Set parameter sets for identity / facial expressions
+        set_blendshape_parameter_sets(character)
 
         # Retrieve correctives paths and create full model
         blendshapes_path = get_mhr_blendshapes_path(folder, lod)
@@ -189,16 +181,12 @@ class MHR(torch.nn.Module):
     def get_num_identity_blendshapes(self) -> int:
         """Return number of identity blendshapes."""
 
-        return self.character_torch.blend_shape.shape_vectors.shape[0]
+        return NUM_IDENTITY_BLENDSHAPES
 
     def get_num_face_expression_blendshapes(self) -> int:
         """Return number of face expression blendshapes."""
 
-        return (
-            self.face_expressions_model.shape_vectors.shape[0]
-            if self.face_expressions_model is not None
-            else 0
-        )
+        return NUM_FACE_EXPRESSION_BLENDSHAPES
 
     def forward(
         self,
@@ -206,61 +194,88 @@ class MHR(torch.nn.Module):
         model_parameters: torch.Tensor,
         face_expr_coeffs: torch.Tensor | None,
         apply_correctives: bool = True,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute vertices given input parameters."""
 
+        # identity_coeffs: [b=batch_size, c=num_shape_coeff]
+        # model_parameters: [b=batch_size, c=num_model_params (rigid, pose, scale)]
+        # face_expr_coeffs: [b=batch_size, c=num_face_coeff]
         assert (
             len(identity_coeffs.shape) == 2
         ), f"Expected batched (n_rows >= 1) identity coeffs with {self.get_num_identity_blendshapes()} columns, got {identity_coeffs.shape}"
-        apply_face_expressions = (
-            self.face_expressions_model is not None and face_expr_coeffs is not None
-        )
+        if face_expr_coeffs is not None:
+            # Check batch sizes of face expression coeffs and model parameters are the same
+            assert (
+                len(face_expr_coeffs.shape) == 2
+            ), f"Expected batched (n_rows >= 1) face expressions coeffs with {self.get_num_face_expression_blendshapes()} columns, got {face_expr_coeffs.shape}"
+        else:
+            # Create zero padding for face expression coeffs
+            face_expr_coeffs = torch.zeros(
+                model_parameters.shape[0], self.get_num_face_expression_blendshapes()
+            ).to(identity_coeffs)
         apply_correctives = (
             apply_correctives and self.pose_correctives_model is not None
         )
 
-        if apply_face_expressions:
-            assert (
-                len(face_expr_coeffs.shape) == 2
-            ), f"Expected batched (n_rows >= 1) face expressions coeffs with {self.get_num_face_expression_blendshapes()} columns, got {face_expr_coeffs.shape}"
+        identity_coeffs = identity_coeffs.expand(model_parameters.shape[0], -1)
 
-        # Compute identity vertices in rest pose
-        identity_rest_pose = self.character_torch.blend_shape.forward(identity_coeffs)
+        coeffs = torch.cat([identity_coeffs, face_expr_coeffs], dim=1)
+        # Compute vertices in rest pose
+        rest_pose = self.character_torch.blend_shape.forward(coeffs)
 
         # Compute joint parameters (local) and skeleton state (global)
+        # We need to pass as many model parameters as the parameter transform size
+        model_padding = (
+            torch.zeros(
+                model_parameters.shape[0],
+                self.get_num_face_expression_blendshapes()
+                + self.get_num_identity_blendshapes(),
+            )
+            .to(model_parameters)
+            .requires_grad_(False)
+        )
         joint_parameters = self.character_torch.model_parameters_to_joint_parameters(
-            model_parameters
+            torch.concatenate((model_parameters, model_padding), axis=1)
         )
         skel_state = self.character_torch.joint_parameters_to_skeleton_state(
             joint_parameters
         )
 
-        # Apply face expressions
-        linear_model_unposed = None
-        if apply_face_expressions:
-            face_expressions = self.face_expressions_model.forward(face_expr_coeffs)
-            linear_model_unposed = identity_rest_pose + face_expressions
-
         # Apply pose correctives
+        linear_model_unposed = rest_pose
         if apply_correctives:
             linear_model_pose_correctives = self.pose_correctives_model.forward(
                 joint_parameters=joint_parameters
             )
-            linear_model_unposed = (
-                identity_rest_pose + linear_model_pose_correctives
-                if linear_model_unposed is None
-                else linear_model_unposed + linear_model_pose_correctives
-            )
-
-        if linear_model_unposed is None:
-            # i.e. (not apply_face_expressions) and (not apply_correctives):
-            linear_model_unposed = identity_rest_pose.expand(
-                skel_state.shape[0], -1, -1
-            )
+            linear_model_unposed += linear_model_pose_correctives
 
         # Compute vertices
         verts = self.character_torch.skin_points(
             skel_state=skel_state, rest_vertex_positions=linear_model_unposed
         )
 
-        return verts
+        return verts, skel_state
+
+
+def set_blendshape_parameter_sets(character: pym_geometry.Character) -> None:
+    """Utility function to discriminate between identity/facial expression blendshape parameters of a character."""
+
+    # Check number of blendshapes is as expected
+    n_shapes = character.blend_shape.n_shapes
+    assert n_shapes == (NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES)
+
+    # Set parameter set for identity
+    identity_parameter_set = torch.zeros(
+        character.parameter_transform.size, dtype=torch.bool
+    )
+    identity_parameter_set[-n_shapes : -n_shapes + NUM_IDENTITY_BLENDSHAPES] = True
+    character.parameter_transform.add_parameter_set("identity", identity_parameter_set)
+
+    # Set parameter set for facial expressions
+    face_expression_parameter_set = torch.zeros(
+        character.parameter_transform.size, dtype=torch.bool
+    )
+    face_expression_parameter_set[-NUM_FACE_EXPRESSION_BLENDSHAPES:] = True
+    character.parameter_transform.add_parameter_set(
+        "faceExpression", face_expression_parameter_set
+    )
