@@ -17,7 +17,7 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 ## Installation
 
 ### Option 1. Using the torchscript model (Recommended)
-<span style="color: red;">To be completed.</span>
+
 ```bash
 # Download the torchscript model
 
@@ -32,7 +32,7 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 - Disadvantage: Currently only support for LOD 1; limited access to model properties.
 
 ### Option 2. Using Pixi (Recommended)
-<span style="color: red;">To be completed.</span>
+
 ```bash
 # After cloning the repository
 cd MHR
@@ -54,7 +54,7 @@ pixi shell
 
 
 ### Option 3. Using pip
-<span style="color: red;">To be completed.</span>
+
 ```bash
 # Pip install
 pip install mhr .
@@ -100,7 +100,6 @@ face_expr_coeffs = 0.3 * torch.randn(batch_size, 72)     # Facial expression
 # Generate mesh vertices and skeleton information (joint orientation and positions).
 vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
 ```
-
 
 ## Model Parameters
 
@@ -152,13 +151,10 @@ Run the test suite:
 
 ```bash
 # Run all tests
-pytest tests/
+pixi run pytest tests/
 
 # Run specific test
-pytest tests/test_mhr.py
-
-# Run with coverage
-pytest --cov=mhr tests/
+pixi run pytest tests/test_mhr.py
 ```
 
 ## Inferring MHR parameters from images
@@ -176,9 +172,8 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 ## Citation
 
 If you use MHR in your research, please cite:
-<span style="color: red;">To be completed, add the tech report.</span>
+
 ```bibtex
-}
 @inproceedings{MHR:2025,
 	author    = {Ferguson, Aaron and Osman, Ahmed A. A. and Bescos, Berta and Stoll, Carsten and Twigg, Chris and Lassner, Christoph and Otte, David and Vignola, Eric and Bogo, Federica and Santesteban, Igor and Romero, Javier and Zarate, Jenna and Lee, Jeongseok and Park, Jinhyung and Yang, Jinlong and Doublestein, John and Venkateshan, Kishore and Kitani, Kris and Kavan, Ladislav and Dal Farra, Marco and Hu, Matthew and Cioffi, Matthew and Fabris, Michael and Ranieri, Michael and Modarres, Mohammad and Kadlecek, Petr and Khirodkar, Rawal and Abdrashitov, Rinat and Prévost, Romain and Rajbhandari, Roman and Mallet, Ronald and Pearsall, Russel and Kao, Sandy and Kumar, Sanjeev and Parrish, Scott and Saito, Shunsuke and Wang, Te-Li and Tung, Tony and Dong, Yuan and Chen, Yuhua and Xu, Yuanlu and Ye, Yuting and Jiang, Zhongshi},
 	title     = {MHR: Momentum Human Rig},

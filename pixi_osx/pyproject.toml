@@ -1,9 +1,16 @@
 [project]
-authors = [{name = "Jinlong Yang", email = "jinlong.yang@oculus.com"}]
-dependencies = ["torch", "trimesh>=4.8.3,<5", "tqdm>=4.67.1,<5", "smplx>=0.1.28,<0.2", "scikit-learn>=1.7.2,<2"]
+authors = [{name = "MHR Contributors"}]
+dependencies = ["torch", "trimesh>=4.8.3,<5", "pytest"]
 name = "mhr"
 requires-python = ">= 3.11"
 version = "0.1.0"
+
+readme = "README.md"
+license = {text = "Apache-2.0"}
+
+[project.urls]
+Homepage = "https://github.com/facebookresearch/MHR"
+Repository = "https://github.com/facebookresearch/MHR"
 
 [build-system]
 build-backend = "hatchling.build"
@@ -22,5 +29,4 @@ mhr = { path = ".", editable = true }
 [tool.pixi.tasks]
 
 [tool.pixi.dependencies]
-pymomentum = "==0.1.90"
-# pymomentum = ">=0.1.74,<0.2"
+pymomentum = ">=0.1.90"
