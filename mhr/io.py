@@ -47,7 +47,7 @@ def get_mhr_model_path(folder: Path) -> str:
 
 
 def get_mhr_blendshapes_path(folder: Path, lod: int) -> str:
-    """Return the path to the file storing identity, facial expression, and pose-dependent blendshapes."""
+    """Return the path to the file storing pose-dependent blendshapes."""
 
     asset_path = folder / f"blendshapes_lod{lod}.npz"
     return str(asset_path)

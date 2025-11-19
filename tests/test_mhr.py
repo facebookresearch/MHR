@@ -64,10 +64,15 @@ class TestMHRModel(unittest.TestCase):
         """Create random parameters and invoke model forward call."""
 
         n_id_blendshapes = model.get_num_identity_blendshapes()
-        n_params = len(model.character_torch.parameter_transform.parameter_names)
+        # Only include rigid, pose and scaling parameters in the model parameters to be passed
+        n_model_params = (
+            model.character.parameter_transform.size
+            - n_id_blendshapes
+            - model.get_num_face_expression_blendshapes()
+        )
 
         coeffs = torch.rand(1, n_id_blendshapes).to(self.device)
-        params = torch.rand(self.batch_size, n_params).to(self.device)
+        params = torch.rand(self.batch_size, n_model_params).to(self.device)
 
         face_coeffs = None
         n_face_expr_blendshapes = model.get_num_face_expression_blendshapes()
@@ -124,7 +129,9 @@ class TestMHRModel(unittest.TestCase):
             pose_correctives_model,
             device=self.device,
         )
-        res_verts, res_skel = self._instantiate_model(mhr_model, apply_pose_correctives=False)
+        res_verts, res_skel = self._instantiate_model(
+            mhr_model, apply_pose_correctives=False
+        )
         self.assertTrue(res_verts.shape[0] == self.batch_size)
         self.assertTrue(res_skel.shape[0] == self.batch_size)
 

@@ -151,6 +151,14 @@ class MHR(torch.nn.Module):
             == NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES
         ), f"Expected {NUM_IDENTITY_BLENDSHAPES} identity and {NUM_FACE_EXPRESSION_BLENDSHAPES} face expression blendshapes, got {character.blend_shape.shape_vectors.shape[0]}"
 
+        n_params = character.parameter_transform.size
+        character = character.with_blend_shape(
+            character.blend_shape
+        )  # update parameter transform to include blendshape coefficients
+        # Assert number of parameters now include blendshape coefficients
+        assert character.parameter_transform.size == (
+            n_params + NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES
+        )
         # Set parameter sets for identity / facial expressions
         set_blendshape_parameter_sets(character)
 
@@ -216,8 +224,18 @@ class MHR(torch.nn.Module):
         rest_pose = self.character_torch.blend_shape.forward(coeffs)
 
         # Compute joint parameters (local) and skeleton state (global)
+        # We need to pass as many model parameters as the parameter transform size
+        model_padding = (
+            torch.zeros(
+                model_parameters.shape[0],
+                self.get_num_face_expression_blendshapes()
+                + self.get_num_identity_blendshapes(),
+            )
+            .to(model_parameters)
+            .requires_grad_(False)
+        )
         joint_parameters = self.character_torch.model_parameters_to_joint_parameters(
-            model_parameters
+            torch.concatenate((model_parameters, model_padding), axis=1)
         )
         skel_state = self.character_torch.joint_parameters_to_skeleton_state(
             joint_parameters
