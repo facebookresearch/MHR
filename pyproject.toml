@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "MHR Contributors"}]
-dependencies = ["torch", "trimesh>=4.8.3,<5", "pytest"]
+dependencies = ["torch", "trimesh>=4.8.3,<5", "pytest>=8.0"]
 name = "mhr"
 requires-python = ">= 3.11"
 version = "0.1.0"
@@ -21,7 +21,7 @@ packages = ["mhr"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64", "linux-64"]
 
 [tool.pixi.pypi-dependencies]
 mhr = { path = ".", editable = true }
