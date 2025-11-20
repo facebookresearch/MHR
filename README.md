@@ -16,7 +16,21 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 
 ## Installation
 
-### Option 1. Using the torchscript model (Recommended)
+### Option 1. Using pip
+
+```bash
+# Install PyMomentum (CPU or GPU)
+pip install pymomentum-cpu  # or pymomentum-gpu
+
+# Install MHR
+pip install mhr
+
+# Download and unzip the model assets
+curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
+unzip assets.zip
+```
+
+### Option 2. Using the torchscript model
 
 ```bash
 # Download the torchscript model
@@ -32,7 +46,7 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 - Advantage: no codebase or model assets are required.
 - Disadvantage: Currently only support for LOD 1; limited access to model properties.
 
-### Option 2. Using Pixi (Recommended)
+### Option 3. Using Pixi
 
 ```bash
 # Clone the repository
@@ -50,20 +64,6 @@ pixi install
 pixi shell
 ```
 
-
-### Option 3. Using pip
-
-```bash
-# Install PyMomentum (CPU or GPU)
-pip install pymomentum-cpu  # or pymomentum-gpu
-
-# Install MHR
-pip install mhr
-
-# Download and unzip the model assets
-curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-unzip assets.zip
-```
 
 
 ### Dependencies
