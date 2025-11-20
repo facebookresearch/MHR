@@ -127,21 +127,21 @@ vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_exp
 
 ```
 MHR/
-├── assets/                      # Model assets
-│   ├── rig_lod*.fbx            # Rig files for each LOD
-│   ├── corrective_blendshapes_lod*.npz  # Blendshapes
-│   ├── corrective_activation.npz        # None-linear pose correctives
-│   └── model_definition.model           # Model parameterization
-├── mhr/                         # Main package
-│   ├── __init__.py
-│   ├── mhr.py                  # MHR model implementation
-│   ├── io.py                   # Asset loading utilities
-│   └── utils.py                # Helper functions
-├── tools/                       # Additional tools
-│   ├── mhr_visualization/      # Jupyter visualization
-├── tests/                       # Unit tests
-├── demo.py                      # Basic demo script
-└── pyproject.toml              # Project configuration
+├── assets                              # Assets (downloaded and unzipped from release)
+│   ├── compact_v6_1.model              # Model parameterization
+│   ├── corrective_activation.npz       # Pose corrective MLP sparse activations
+│   ├── corrective_blendshapes_lod?.npz # Pose corrective blendshapes
+│   ├── lod?.fbx                        # Rig with identity and expression blendshapes
+│   └── mhr_model.pt                    # Torchscript model
+├── demo.py                             # Basic demo script
+├── mhr                                 # Main package
+│   ├── io.py                           # Asset loading utilities
+│   ├── mhr.py                          # MHR model implementation
+│   └── utils.py                        # Helper functions
+├── pyproject.toml                      # Pixi project configuration
+├── tests                               # Unit tests
+└── tools                               # Additional tools
+    └── mhr_visualization               # Jupyter visualization
 ```
 
 ## Testing
