@@ -34,7 +34,11 @@ packages = ["mhr"]
 channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
 
+[tool.pixi.activation]
+scripts = ["scripts/download_assets.sh"]
+
 [tool.pixi.tasks]
+download-assets = { cmd = "curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip && unzip -o assets.zip && rm assets.zip", description = "Download and extract model assets" }
 test = { cmd = "pytest tests/ -v", description = "Run pytest tests with verbose output" }
 wheel-clean = { cmd = "rm -rf dist build *.egg-info", description = "Wheel: Clean build artifacts and distribution files" }
 wheel-build = { cmd = "python -m build", description = "Wheel: Build source distribution and wheel package" }

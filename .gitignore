@@ -11,6 +11,10 @@ build/
 # Auto-generated version file
 mhr/_version.py
 
+# Assets
+assets/
+assets.zip
+
 # Testing
 .pytest_cache/
 .coverage

@@ -39,17 +39,12 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 git clone git@github.com:facebookresearch/MHR.git
 cd MHR
 
-# Download the and unzip model assets
-curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-unzip assets.zip
-
-# Install dependencies with Pixi
+# Install dependencies
 pixi install
 
-# Activate the environment
+# Activate the environment (assets will download automatically)
 pixi shell
 ```
-
 
 ### Option 3. Using pip
 
@@ -64,7 +59,6 @@ pip install mhr
 curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
 unzip assets.zip
 ```
-
 
 ### Dependencies
 
