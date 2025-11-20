@@ -175,12 +175,34 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 If you use MHR in your research, please cite:
 
 ```bibtex
-@inproceedings{MHR:2025,
-	author    = {Ferguson, Aaron and Osman, Ahmed A. A. and Bescos, Berta and Stoll, Carsten and Twigg, Chris and Lassner, Christoph and Otte, David and Vignola, Eric and Bogo, Federica and Santesteban, Igor and Romero, Javier and Zarate, Jenna and Lee, Jeongseok and Park, Jinhyung and Yang, Jinlong and Doublestein, John and Venkateshan, Kishore and Kitani, Kris and Kavan, Ladislav and Dal Farra, Marco and Hu, Matthew and Cioffi, Matthew and Fabris, Michael and Ranieri, Michael and Modarres, Mohammad and Kadlecek, Petr and Khirodkar, Rawal and Abdrashitov, Rinat and Prévost, Romain and Rajbhandari, Roman and Mallet, Ronald and Pearsall, Russel and Kao, Sandy and Kumar, Sanjeev and Parrish, Scott and Saito, Shunsuke and Wang, Te-Li and Tung, Tony and Dong, Yuan and Chen, Yuhua and Xu, Yuanlu and Ye, Yuting and Jiang, Zhongshi},
-	title     = {MHR: Momentum Human Rig},
-	booktitle = {Tech Report},
-	year      = {2025},
-	url       = {https://arxiv.org/abs/your-arxiv-id}
+@ARTICLE{Aaron2025-bm,
+  title         = "{MHR}: Momentum Human Rig",
+  author        = "Aaron, Ferguson and Osman, Ahmed A A and Berta, Bescos and
+                   Carsten, Stoll and Chris, Twigg and Christoph, Lassner and
+                   David, Otte and Eric, Vignola and Federica, Bogo and Igor,
+                   Santesteban and Javier, Romero and Jenna, Zarate and
+                   Jeongseok, Lee and Jinhyung, Park and Jinlong, Yang and
+                   John, Doublestein and Kishore, Venkateshan and Kris, Kitani
+                   and Ladislav, Kavan and Farra, Marco Dal and Matthew, Hu and
+                   Matthew, Cioffi and Michael, Fabris and Michael, Ranieri and
+                   Mohammad, Modarres and Petr, Kadlecek and Rinat, Abdrashitov
+                   and Romain, Pr{\'e}vost and Roman, Rajbhandari and Ronald,
+                   Mallet and Russel, Pearsall and Sandy, Kao and Sanjeev,
+                   Kumar and Scott, Parrish and Te-Li, Wang and Tony, Tung and
+                   Yuan, Dong and Yuhua, Chen and Yuanlu, Xu and Yuting, Ye and
+                   Zhongshi, Jiang",
+  abstract      = "We present MHR, a parametric human body model that combines
+                   the decoupled skeleton/shape paradigm of ATLAS with a
+                   flexible, modern rig and pose corrective system inspired by
+                   the Momentum library. Our model enables expressive,
+                   anatomically plausible human animation, supporting
+                   non-linear pose correctives, and is designed for robust
+                   integration in AR/VR and graphics pipelines.",
+  month         =  nov,
+  year          =  2025,
+  archivePrefix = "arXiv",
+  primaryClass  = "cs.GR",
+  eprint        = "2511.15586"
 }
 ```
 
