@@ -175,7 +175,7 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 If you use MHR in your research, please cite:
 
 ```bibtex
-@ARTICLE{Aaron2025-bm,
+@ARTICLE{MHR:2025,
   title         = "{MHR}: Momentum Human Rig",
   author        = "Aaron, Ferguson and Osman, Ahmed A A and Berta, Bescos and
                    Carsten, Stoll and Chris, Twigg and Christoph, Lassner and
@@ -191,13 +191,6 @@ If you use MHR in your research, please cite:
                    Kumar and Scott, Parrish and Te-Li, Wang and Tony, Tung and
                    Yuan, Dong and Yuhua, Chen and Yuanlu, Xu and Yuting, Ye and
                    Zhongshi, Jiang",
-  abstract      = "We present MHR, a parametric human body model that combines
-                   the decoupled skeleton/shape paradigm of ATLAS with a
-                   flexible, modern rig and pose corrective system inspired by
-                   the Momentum library. Our model enables expressive,
-                   anatomically plausible human animation, supporting
-                   non-linear pose correctives, and is designed for robust
-                   integration in AR/VR and graphics pipelines.",
   month         =  nov,
   year          =  2025,
   archivePrefix = "arXiv",
