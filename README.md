@@ -89,6 +89,8 @@ This will generate a test MHR mesh and compare outputs with the TorchScript mode
 
 ### Visualization Demo
 
+![Visualization Notebook](images/visualization_notebook.png?raw=true)
+
 Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
 
 
