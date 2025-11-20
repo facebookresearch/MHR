@@ -39,14 +39,7 @@ Google Colab is a free cloud-based Jupyter notebook environment that requires no
 
 ## Running the Notebook
 
-Once opened in Google Colab:
-
-1. **Install Dependencies**: If the notebook requires specific packages, run any installation cells at the beginning (usually with `!pip install` commands)
-
-2. **Run Cells**: Execute cells sequentially using:
-   - **Shift + Enter** to run the current cell and move to the next
-   - **Ctrl/Cmd + Enter** to run the current cell and stay on it
-   - **Runtime** → **Run all** to execute all cells
+Once opened in Google Colab: Just follow the instructions in the notebook to run the cells.
 
 ## Resources
 
