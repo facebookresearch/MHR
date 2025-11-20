@@ -6,6 +6,8 @@ A minimal Python package for the Momentum Human Rig - a parametric 3D human body
 
 ## Overview
 
+![MHR teaser](images/teaser.jpg?raw=true)
+
 MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 
 - **Identity Parameterization**: 45 shape parameters controlling body identity
