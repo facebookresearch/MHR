@@ -179,27 +179,14 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 If you use MHR in your research, please cite:
 
 ```bibtex
-@ARTICLE{MHR:2025,
-  title         = "{MHR}: Momentum Human Rig",
-  author        = "Aaron, Ferguson and Osman, Ahmed A A and Berta, Bescos and
-                   Carsten, Stoll and Chris, Twigg and Christoph, Lassner and
-                   David, Otte and Eric, Vignola and Federica, Bogo and Igor,
-                   Santesteban and Javier, Romero and Jenna, Zarate and
-                   Jeongseok, Lee and Jinhyung, Park and Jinlong, Yang and
-                   John, Doublestein and Kishore, Venkateshan and Kris, Kitani
-                   and Ladislav, Kavan and Farra, Marco Dal and Matthew, Hu and
-                   Matthew, Cioffi and Michael, Fabris and Michael, Ranieri and
-                   Mohammad, Modarres and Petr, Kadlecek and Rinat, Abdrashitov
-                   and Romain, Pr{\'e}vost and Roman, Rajbhandari and Ronald,
-                   Mallet and Russel, Pearsall and Sandy, Kao and Sanjeev,
-                   Kumar and Scott, Parrish and Te-Li, Wang and Tony, Tung and
-                   Yuan, Dong and Yuhua, Chen and Yuanlu, Xu and Yuting, Ye and
-                   Zhongshi, Jiang",
-  month         =  nov,
-  year          =  2025,
-  archivePrefix = "arXiv",
-  primaryClass  = "cs.GR",
-  eprint        = "2511.15586"
+@misc{MHR:2025,
+      title={MHR: Momentum Human Rig}, 
+      author={Aaron Ferguson and Ahmed A. A. Osman and Berta Bescos and Carsten Stoll and Chris Twigg and Christoph Lassner and David Otte and Eric Vignola and Fabian Prada and Federica Bogo and Igor Santesteban and Javier Romero and Jenna Zarate and Jeongseok Lee and Jinhyung Park and Jinlong Yang and John Doublestein and Kishore Venkateshan and Kris Kitani and Ladislav Kavan and Marco Dal Farra and Matthew Hu and Matthew Cioffi and Michael Fabris and Michael Ranieri and Mohammad Modarres and Petr Kadlecek and Rawal Khirodkar and Rinat Abdrashitov and Romain Prévost and Roman Rajbhandari and Ronald Mallet and Russel Pearsall and Sandy Kao and Sanjeev Kumar and Scott Parrish and Shoou-I Yu and Shunsuke Saito and Takaaki Shiratori and Te-Li Wang and Tony Tung and Yichen Xu and Yuan Dong and Yuhua Chen and Yuanlu Xu and Yuting Ye and Zhongshi Jiang},
+      year={2025},
+      eprint={2511.15586},
+      archivePrefix={arXiv},
+      primaryClass={cs.GR},
+      url={https://arxiv.org/abs/2511.15586}, 
 }
 ```
 
