@@ -83,6 +83,11 @@ python demo.py
 
 This will generate a test MHR mesh and compare outputs with the TorchScript model.
 
+### Visualization Demo
+
+Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
+
+
 ### Basic Usage
 
 ```python
@@ -117,13 +122,6 @@ vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_exp
 - **Shape**: `[batch_size, 72]`
 - **Description**: Facial expression blendshape weights
 - **Typical Range**: -1 to +1
-
-## Tools
-
-### Visualization
-
-Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
-
 
 ## Project Structure
 
