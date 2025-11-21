@@ -16,7 +16,7 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 - **Multiple LOD Levels**: 7 levels of detail (LOD 0-6) for different performance requirements
 - **Non-linear Pose Correctives**: Neural network-based pose-dependent deformations
 - **PyTorch Integration**: GPU-accelerated inference for real-time applications
-- **[PyMomentum](https://facebookresearch.github.io/momentum/) Integration**: Compatible to fast CPU solver
+- **[PyMomentum](https://facebookresearch.github.io/momentum/) Integration**: Compatible with fast CPU solver
 
 ## Installation
 
