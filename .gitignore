@@ -30,3 +30,8 @@ pixi.lock
 
 # OS
 .DS_Store
+
+# Downloaded assets
+assets/
+assets.zip
+__MACOSX/
