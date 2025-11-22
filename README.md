@@ -2,7 +2,11 @@
 
 A minimal Python package for the Momentum Human Rig - a parametric 3D human body model with identity, pose, and facial expression parameterization.
 
+[![arXiv](https://img.shields.io/badge/arXiv-2511.15586-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2511.15586)
+
 ## Overview
+
+![MHR teaser](images/teaser.jpg?raw=true)
 
 MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 
@@ -12,11 +16,25 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 - **Multiple LOD Levels**: 7 levels of detail (LOD 0-6) for different performance requirements
 - **Non-linear Pose Correctives**: Neural network-based pose-dependent deformations
 - **PyTorch Integration**: GPU-accelerated inference for real-time applications
-- **PyMomentum Integration**: Compatible to fast CPU solver
+- **[PyMomentum](https://facebookresearch.github.io/momentum/) Integration**: Compatible with fast CPU solver
 
 ## Installation
 
-### Option 1. Using the torchscript model (Recommended)
+### Option 1. Using pip
+
+```bash
+# Install PyMomentum (CPU or GPU)
+pip install pymomentum-cpu  # or pymomentum-gpu
+
+# Install MHR
+pip install mhr
+
+# Download and unzip the model assets
+curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
+unzip assets.zip
+```
+
+### Option 2. Using the torchscript model
 
 ```bash
 # Download the torchscript model
@@ -32,7 +50,7 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 - Advantage: no codebase or model assets are required.
 - Disadvantage: Currently only support for LOD 1; limited access to model properties.
 
-### Option 2. Using Pixi (Recommended)
+### Option 3. Using Pixi
 
 ```bash
 # Clone the repository
@@ -51,20 +69,6 @@ pixi shell
 ```
 
 
-### Option 3. Using pip
-
-```bash
-# Install PyMomentum (CPU or GPU)
-pip install pymomentum-cpu  # or pymomentum-gpu
-
-# Install MHR
-pip install mhr
-
-# Download and unzip the model assets
-curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-unzip assets.zip
-```
-
 
 ### Dependencies
 
@@ -82,6 +86,13 @@ python demo.py
 ```
 
 This will generate a test MHR mesh and compare outputs with the TorchScript model.
+
+### Visualization Demo
+
+![Visualization Notebook](images/visualization_notebook.png?raw=true)
+
+Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
+
 
 ### Basic Usage
 
@@ -118,32 +129,25 @@ vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_exp
 - **Description**: Facial expression blendshape weights
 - **Typical Range**: -1 to +1
 
-## Tools
-
-### Visualization
-
-Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
-
-
 ## Project Structure
 
 ```
 MHR/
-├── assets/                      # Model assets
-│   ├── rig_lod*.fbx            # Rig files for each LOD
-│   ├── corrective_blendshapes_lod*.npz  # Blendshapes
-│   ├── corrective_activation.npz        # None-linear pose correctives
-│   └── model_definition.model           # Model parameterization
-├── mhr/                         # Main package
-│   ├── __init__.py
-│   ├── mhr.py                  # MHR model implementation
-│   ├── io.py                   # Asset loading utilities
-│   └── utils.py                # Helper functions
-├── tools/                       # Additional tools
-│   ├── mhr_visualization/      # Jupyter visualization
-├── tests/                       # Unit tests
-├── demo.py                      # Basic demo script
-└── pyproject.toml              # Project configuration
+├── assets                              # Assets (downloaded and unzipped from release)
+│   ├── compact_v6_1.model              # Model parameterization
+│   ├── corrective_activation.npz       # Pose corrective MLP sparse activations
+│   ├── corrective_blendshapes_lod?.npz # Pose corrective blendshapes
+│   ├── lod?.fbx                        # Rig with identity and expression blendshapes
+│   └── mhr_model.pt                    # Torchscript model
+├── demo.py                             # Basic demo script
+├── mhr                                 # Main package
+│   ├── io.py                           # Asset loading utilities
+│   ├── mhr.py                          # MHR model implementation
+│   └── utils.py                        # Helper functions
+├── pyproject.toml                      # Pixi project configuration
+├── tests                               # Unit tests
+└── tools                               # Additional tools
+    └── mhr_visualization               # Jupyter visualization
 ```
 
 ## Testing
@@ -175,12 +179,14 @@ Please read our [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before contributing.
 If you use MHR in your research, please cite:
 
 ```bibtex
-@inproceedings{MHR:2025,
-	author    = {Ferguson, Aaron and Osman, Ahmed A. A. and Bescos, Berta and Stoll, Carsten and Twigg, Chris and Lassner, Christoph and Otte, David and Vignola, Eric and Bogo, Federica and Santesteban, Igor and Romero, Javier and Zarate, Jenna and Lee, Jeongseok and Park, Jinhyung and Yang, Jinlong and Doublestein, John and Venkateshan, Kishore and Kitani, Kris and Kavan, Ladislav and Dal Farra, Marco and Hu, Matthew and Cioffi, Matthew and Fabris, Michael and Ranieri, Michael and Modarres, Mohammad and Kadlecek, Petr and Khirodkar, Rawal and Abdrashitov, Rinat and Prévost, Romain and Rajbhandari, Roman and Mallet, Ronald and Pearsall, Russell and Kao, Sandy and Kumar, Sanjeev and Parrish, Scott and Saito, Shunsuke and Wang, Te-Li and Tung, Tony and Dong, Yuan and Chen, Yuhua and Xu, Yuanlu and Ye, Yuting and Jiang, Zhongshi},
-	title     = {MHR: Momentum Human Rig},
-	booktitle = {Tech Report},
-	year      = {2025},
-	url       = {https://arxiv.org/abs/your-arxiv-id}
+@misc{MHR:2025,
+      title={MHR: Momentum Human Rig},
+      author={Aaron Ferguson and Ahmed A. A. Osman and Berta Bescos and Carsten Stoll and Chris Twigg and Christoph Lassner and David Otte and Eric Vignola and Fabian Prada and Federica Bogo and Igor Santesteban and Javier Romero and Jenna Zarate and Jeongseok Lee and Jinhyung Park and Jinlong Yang and John Doublestein and Kishore Venkateshan and Kris Kitani and Ladislav Kavan and Marco Dal Farra and Matthew Hu and Matthew Cioffi and Michael Fabris and Michael Ranieri and Mohammad Modarres and Petr Kadlecek and Rawal Khirodkar and Rinat Abdrashitov and Romain Prévost and Roman Rajbhandari and Ronald Mallet and Russell Pearsall and Sandy Kao and Sanjeev Kumar and Scott Parrish and Shoou-I Yu and Shunsuke Saito and Takaaki Shiratori and Te-Li Wang and Tony Tung and Yichen Xu and Yuan Dong and Yuhua Chen and Yuanlu Xu and Yuting Ye and Zhongshi Jiang},
+      year={2025},
+      eprint={2511.15586},
+      archivePrefix={arXiv},
+      primaryClass={cs.GR},
+      url={https://arxiv.org/abs/2511.15586},
 }
 ```
 
