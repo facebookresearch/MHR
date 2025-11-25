@@ -113,7 +113,7 @@ class DEMO:
         # Example 3: Convert the MHR parameters to SMPLX with a single identity
         if self.smplx_model is not None:
             print("\nConverting MHR parameters to PyTorch with a single identity.")
-            example_output_dir = output_dir + "/mhr_para2smplx_single_identity"
+            example_output_dir = output_dir + "/mhr_para2smplx_pytorch_single_identity"
             os.makedirs(example_output_dir, exist_ok=True)
             self.example_mhr_parameters_to_smplx_pytorch_single_identity(
                 mhr_parameters, example_output_dir

@@ -31,10 +31,13 @@ from sklearn.cluster import KMeans
 
 from file_assets import HEAD_HAND_MASK_FILE
 
+# There are 204 parameters for the MHR rig, including global rigid transform,
+# joint rotations, and joint scales.
 _NUM_RIG_PARAMETERS = 204
-_NUM_BODY_BLENDSHAPES = 20
-_NUM_HEAD_BLENDSHAPES = 20
-_NUM_HAND_BLENDSHAPES = 5
+# In total there are 45 identity blendshapes for MHR.
+_NUM_BODY_BLENDSHAPES = 20  # The first 20 are for body shape.
+_NUM_HEAD_BLENDSHAPES = 20  # The next 20 are for head shape.
+_NUM_HAND_BLENDSHAPES = 5   # The last 5 are for hand shape.
 
 logger = logging.getLogger(__name__)
 

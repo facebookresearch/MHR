@@ -6,8 +6,7 @@ A Python toolkit for converting between SMPL/SMPLX and MHR body model representa
 
 The SMPL-MHR Conversion Tool enables seamless conversion between different 3D human body model formats:
 
-- **SMPL → MHR**: Convert SMPL model parameters/meshes to MHR format
-- **SMPLX → MHR**: Convert SMPLX model parameters/meshes to MHR format
+- **SMPL/SMPLX → MHR**: Convert SMPL/SMPLX model parameters/meshes to MHR format
 - **MHR → SMPL/SMPLX**: Convert MHR parameters back to SMPL/SMPLX format
 
 The tool uses barycentric interpolation for topology mapping and offers multiple optimization backends for parameter fitting.
@@ -15,10 +14,8 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 ## Features
 
 ### 🔄 **Bidirectional Conversion**
-- SMPL/SMPLX parameters → MHR parameters
-- SMPL/SMPLX vertices → MHR vertices
-- MHR parameters → SMPL/SMPLX parameters
-- MHR vertices → SMPL/SMPLX vertices
+- SMPL/SMPLX parameters or vertices → MHR parameters
+- MHR parameters or vertices → SMPL/SMPLX parameters
 
 ### ⚙️ **Multiple Optimization Methods**
 - **PyMomentum**: CPU-based hierarchical optimization with robust fitting
@@ -29,10 +26,10 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 - **Multiple Identities**: Unique shape parameters for each frame
 
 ### 📊 **Output Options**
-- Export meshes in PLY format
+- Return meshes in trimesh.Trimesh format
 - Return parameter dictionaries
-- Generate vertex arrays
-- Compute fitting error metrics
+- Return vertex as numpy arrays
+- Return fitting errors
 
 ## Installation
 
@@ -59,6 +56,18 @@ You'll need the official SMPL/SMPLX model files:
 ```bash
 pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -o output_dir
 ```
+Three conversions will be conducted and the results will be exported in three folders under the output_dir. The results folders are named as {source_model}\_{input_format}2{target_model}\_{method}(_{if_single_identity_sequence}):
+
+```
+mhr_smpl_conversion/
+├── output_dir
+│   ├── smpl_para2mhr_pymomentum
+│   ├── mhr_para2smplx_pytorch_single_identity
+│   ├── smplx_mesh2mhr_pytorch_single_identity
+└──...
+```
+
+Meshes of the source and the target model can be found under each conversion results folder.
 
 ### Programmatic Usage
 
@@ -171,7 +180,7 @@ Container for conversion results.
 
 - **Pros**: GPU acceleration, faster processing
 - **Cons**: Currently process each frame independently, no temporal consistency is leveraged.
-- **Best for**: Large-scale convertion of independent poses.
+- **Best for**: Large-scale conversion of independent poses.
 
 **Features:**
 - Edge + vertex loss combination
