@@ -50,7 +50,7 @@ You'll need the official SMPL/SMPLX model files:
 1. **SMPL**: Download from [SMPL website](https://smpl.is.tue.mpg.de/)
 2. **SMPLX**: Download from [SMPLX website](https://smpl-x.is.tue.mpg.de/)
 
-**Note**: For SMPL models, ensure you have a chumpy-free `.pkl` file or the current official `.npz` file. The tool can automatically convert `.npz` to compatible `.pkl` format.
+**Note**: If you run into issues with the `.pkl` SMPL(X) model file, try the official `.npz` files instead.
 
 ## Quick Start
 
