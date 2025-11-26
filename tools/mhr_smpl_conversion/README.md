@@ -18,7 +18,7 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 - MHR parameters or vertices → SMPL/SMPLX parameters
 
 ### ⚙️ **Multiple Optimization Methods**
-- **PyMomentum**: CPU-based hierarchical optimization with robust fitting
+- **PyMomentum**: CPU-based Gauss-Newton hierarchical optimization with robust fitting
 - **PyTorch**: GPU-accelerated optimization with edge and vertex loss
 
 ### 🎭 **Identity Handling**
