@@ -94,6 +94,10 @@ This will generate a test MHR mesh and compare outputs with the TorchScript mode
 Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
 
 
+### SMPL/SMPL-X Conversion
+
+Conversion between MHR and SMPL/SMPL-X. See [`tools/mhr_smpl_conversion/README.md`](tools/mhr_smpl_conversion/README.md).
+
 ### Basic Usage
 
 ```python
@@ -147,7 +151,8 @@ MHR/
 ├── pyproject.toml                      # Pixi project configuration
 ├── tests                               # Unit tests
 └── tools                               # Additional tools
-    └── mhr_visualization               # Jupyter visualization
+    ├── mhr_visualization               # Jupyter visualization
+    └── mhr_smpl_conversion             # Conversion between MHR and SMPL/SMPL-X
 ```
 
 ## Testing
