@@ -42,6 +42,7 @@ wheel-test = { cmd = "python scripts/test_wheel.py", description = "Wheel: Test 
 wheel-publish = { cmd = "twine upload --repository mhr dist/*", description = "Wheel: Publish wheel package to PyPI" }
 
 [tool.pixi.pypi-dependencies]
+mhr = { path = ".", editable = true }
 pytest = ">=8.0"
 build = ">=1.0"
 twine = ">=5.0"
