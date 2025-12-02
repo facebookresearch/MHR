@@ -4538,8 +4538,8 @@ packages:
   timestamp: 1728064659078
 - pypi: ./
   name: mhr
-  version: 1.0.0.post22+gc9e6ddf4a
-  sha256: 3ee8c9bd340ea0d1b4fd2aa1d8408210940d90570b328488fe17f82e9549f449
+  version: 1.0.0.post16+ga6e6da4f9.d20251202
+  sha256: 548d48b8b8eba1e3094fc70ec0fd9b4ceb20ae2ee511aa1c5a2de3013a760501
   requires_dist:
   - torch
   - trimesh>=4.8.3,<5

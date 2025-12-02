@@ -15,6 +15,7 @@ mhr/_version.py
 .pytest_cache/
 .coverage
 htmlcov/
+test.ply
 
 # Environments
 .venv/

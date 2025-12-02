@@ -35,6 +35,7 @@ channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
 
 [tool.pixi.tasks]
+demo = { cmd = "python demo.py", description = "Run demo script" }
 test = { cmd = "pytest tests/ -v", description = "Run pytest tests with verbose output" }
 wheel-clean = { cmd = "rm -rf dist build *.egg-info", description = "Wheel: Clean build artifacts and distribution files" }
 wheel-build = { cmd = "python -m build", description = "Wheel: Build source distribution and wheel package" }
