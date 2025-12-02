@@ -42,10 +42,11 @@ jobs:
         run: |
           pixi run -e ${{ matrix.python-version }} test
 
-      - name: Test build
+      - name: Download and unzip assets
         run: |
-          pixi run wheel-build
+          curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
+          unzip assets.zip
 
-      - name: Test wheel
+      - name: Test demo
         run: |
-          pixi run wheel-test
+          pixi run -e ${{ matrix.python-version }} demo
