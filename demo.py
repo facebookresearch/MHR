@@ -52,6 +52,43 @@ def compare_with_torchscript_model():
         print(f"Averge per-vertex offsets {torch.abs(verts - verts_ts).mean()} cm.")
         print(f"Max per-vertex offsets {torch.abs(verts - verts_ts).max()} cm.")
 
+def export_animation():
+    print("Exporting animation.")
+    mhr_model = MHR.from_files(device=torch.device("cpu"), lod=1)
+    batch_size = 1
+    identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(batch_size)
+    steps = torch.linspace(0, 1, 30)
+    identity_coeffs = steps[..., None] * identity_coeffs
+    model_parameters = steps[..., None] * model_parameters
+    face_expr_coeffs = steps[..., None] * face_expr_coeffs
+
+    glb_file = "./exported_animation.glb"
+    try:
+        mhr_model.save_to_gltf(
+            glb_file,
+            identity_coeffs,
+            model_parameters,
+            face_expr_coeffs,
+            fps=30,
+        )
+        print(f"Saved animation to {glb_file}")
+    except Exception as e:
+        print(f"An error occurred when exporting to gltf: {e}")
+
+    fbx_file = "./exported_animation.fbx"
+    try:
+        mhr_model.save_to_fbx(
+            fbx_file,
+            identity_coeffs,
+            model_parameters,
+            face_expr_coeffs,
+            fps=30,
+        )
+        print(f"Saved animation to {fbx_file}")
+    except Exception as e:
+        print(f"An error occurred when exporting to fbx: {e}")
+
 if __name__ == "__main__":
     run()
     compare_with_torchscript_model()
+    export_animation()

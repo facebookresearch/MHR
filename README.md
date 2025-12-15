@@ -85,7 +85,7 @@ pixi shell
 python demo.py
 ```
 
-This will generate a test MHR mesh and compare outputs with the TorchScript model.
+This will generate a test MHR mesh, compare outputs with the TorchScript model, and export a short animation sequence to .glb and .fbx files.
 
 ### Visualization Demo
 

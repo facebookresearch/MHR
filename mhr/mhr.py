@@ -256,6 +256,167 @@ class MHR(torch.nn.Module):
 
         return verts, skel_state
 
+    def save_to_fbx(
+        self,
+        output_path: str,
+        identity_coeffs: torch.Tensor,
+        model_parameters: torch.Tensor,
+        face_expr_coeffs: torch.Tensor | None = None,
+        fps: float = 60.0,
+        options: pym_geometry.FileSaveOptions | None = None,
+    ) -> None:
+        """Save a posed MHR model to FBX file.
+
+        This method combines identity blendshape coefficients, pose/model parameters,
+        and facial expression coefficients into a single parameter vector and exports
+        it to an FBX file.
+        * Note, unlike save_to_gltf, FBX format does not currently support blend shape
+        (morph target) animation, so identity and face expression coefficients will
+        not be used in the fbx file.
+
+        :param output_path: Path to the output FBX file.
+        :param identity_coeffs: Identity blendshape coefficients. Shape: [batch, 45]
+        :param model_parameters: Pose/skeleton model parameters. Shape: [batch, num_pose_params]
+        :param face_expr_coeffs: Facial expression blendshape coefficients. Shape: [batch, 72]
+            If None, zero coefficients will be used.
+        :param fps: Frames per second for the animation. Default: 60.0
+        :param options: Optional FileSaveOptions for controlling coordinate system, namespace, etc.
+        """
+        full_model_parameters_np = self._combine_parameters_for_gltf_and_fbx_export(
+            identity_coeffs, model_parameters, face_expr_coeffs
+        )
+
+        if options is None:
+            pym_geometry.Character.save_fbx(
+                path=output_path,
+                character=self.character,
+                motion=full_model_parameters_np,
+                offsets=None,
+                fps=fps,
+            )
+        else:
+            pym_geometry.Character.save_fbx(
+                path=output_path,
+                character=self.character,
+                motion=full_model_parameters_np,
+                offsets=None,
+                fps=fps,
+                options=options,
+            )
+
+    def save_to_gltf(
+        self,
+        output_path: str,
+        identity_coeffs: torch.Tensor,
+        model_parameters: torch.Tensor,
+        face_expr_coeffs: torch.Tensor | None = None,
+        fps: float = 60.0,
+        options: pym_geometry.FileSaveOptions | None = None,
+    ) -> None:
+        """Save a posed MHR model to GLTF file with blend shape animation support.
+
+        This method combines identity blendshape coefficients, pose/model parameters,
+        and facial expression coefficients into a single parameter vector and exports
+        it to a GLTF file. GLTF format natively supports blend shape (morph target)
+        animation, so identity and face expression coefficients will be properly
+        animated frame-by-frame in the output.
+
+        :param output_path: Path to the output GLTF/GLB file.
+        :param identity_coeffs: Identity blendshape coefficients. Shape: [batch, 45]
+        :param model_parameters: Pose/skeleton model parameters. Shape: [batch, num_pose_params]
+        :param face_expr_coeffs: Facial expression blendshape coefficients. Shape: [batch, 72]
+            If None, zero coefficients will be used.
+        :param fps: Frames per second for the animation. Default: 60.0
+        :param options: Optional FileSaveOptions for controlling coordinate system, namespace, etc.
+        """
+        full_model_parameters_np = self._combine_parameters_for_gltf_and_fbx_export(
+            identity_coeffs, model_parameters, face_expr_coeffs
+        )
+
+        # Get parameter names for GLTF format (requires named tuple)
+        param_names = self.character.parameter_transform.names
+
+        # Save to GLTF with motion as (names, data) tuple
+        if options is None:
+            pym_geometry.Character.save_gltf(
+                path=output_path,
+                character=self.character,
+                motion=(param_names, full_model_parameters_np),
+                fps=fps,
+            )
+        else:
+            pym_geometry.Character.save_gltf(
+                path=output_path,
+                character=self.character,
+                motion=(param_names, full_model_parameters_np),
+                fps=fps,
+                options=options,
+            )
+
+    def _combine_parameters_for_gltf_and_fbx_export(
+        self,
+        identity_coeffs: torch.Tensor,
+        model_parameters: torch.Tensor,
+        face_expr_coeffs: torch.Tensor | None = None,
+    ) -> np.ndarray:
+        """Converts the input parameters to the format expected by the GLTF and FBX export functions.
+
+        The expected format is a single tensor with the following order:
+        [model_parameters, identity_coeffs, face_expr_coeffs]
+
+        :param identity_coeffs: Identity blendshape coefficients. Shape: [batch, 45]
+        :param model_parameters: Pose/skeleton model parameters. Shape: [batch, num_pose_params]
+        :param face_expr_coeffs: Facial expression blendshape coefficients. Shape: [batch, 72]
+            If None, zero coefficients will be used.
+        :return: A single numpy array with the combined parameters in the expected order.
+        """
+        # Validate input dimensions
+        assert (
+            len(identity_coeffs.shape) == 2
+        ), f"Expected batched identity coeffs with shape [batch, {self.get_num_identity_blendshapes()}], got {identity_coeffs.shape}"
+        assert identity_coeffs.shape[1] == self.get_num_identity_blendshapes(), (
+            f"Expected {self.get_num_identity_blendshapes()} identity coefficients, "
+            f"got {identity_coeffs.shape[1]}"
+        )
+
+        # Handle None face expression coefficients
+        if face_expr_coeffs is None:
+            face_expr_coeffs = torch.zeros(
+                model_parameters.shape[0], self.get_num_face_expression_blendshapes()
+            ).to(identity_coeffs)
+        else:
+            assert (
+                len(face_expr_coeffs.shape) == 2
+            ), f"Expected batched face expression coeffs with shape [batch, {self.get_num_face_expression_blendshapes()}], got {face_expr_coeffs.shape}"
+            assert (
+                face_expr_coeffs.shape[1] == self.get_num_face_expression_blendshapes()
+            ), (
+                f"Expected {self.get_num_face_expression_blendshapes()} face expression coefficients, "
+                f"got {face_expr_coeffs.shape[1]}"
+            )
+
+        # Expand identity coefficients to match batch size if needed
+        if identity_coeffs.shape[0] == 1 and model_parameters.shape[0] > 1:
+            identity_coeffs = identity_coeffs.expand(model_parameters.shape[0], -1)
+
+        # Concatenate all parameters in the correct order:
+        # [model_parameters, identity_coeffs, face_expr_coeffs]
+        full_model_parameters = torch.cat(
+            [model_parameters, identity_coeffs, face_expr_coeffs], dim=1
+        )
+
+        # Verify the concatenated parameters match expected size
+        expected_size = self.character.parameter_transform.size
+        assert full_model_parameters.shape[1] == expected_size, (
+            f"Combined parameters size {full_model_parameters.shape[1]} "
+            f"does not match expected size {expected_size}"
+        )
+
+        # Convert to numpy
+        full_model_parameters_np = full_model_parameters.detach().cpu().numpy()
+
+        return full_model_parameters_np
+
 
 def set_blendshape_parameter_sets(character: pym_geometry.Character) -> None:
     """Utility function to discriminate between identity/facial expression blendshape parameters of a character."""
