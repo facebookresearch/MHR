@@ -87,6 +87,10 @@ def export_animation():
         print(f"Saved animation to {fbx_file}")
     except Exception as e:
         print(f"An error occurred when exporting to fbx: {e}")
+        print(
+            "PyMomentum on conda is compiled with OpenFBX, not Autodesk FBX SDK due to licensing restrictions.",
+            "Please build PyMomentum from source with Autodesk FBX SDK enabled."
+            )
 
 if __name__ == "__main__":
     run()
