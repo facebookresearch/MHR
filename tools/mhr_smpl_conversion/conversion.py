@@ -82,7 +82,7 @@ Conversion Process:
 
 import logging
 from functools import cached_property, lru_cache
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
 
@@ -322,9 +322,9 @@ class Conversion:
         return ConversionResult(
             result_meshes=result_meshes if return_mhr_meshes else None,
             result_vertices=mhr_vertices if return_mhr_vertices else None,
-            result_parameters=None
-            if not return_mhr_parameters
-            else fitting_parameter_results,
+            result_parameters=(
+                None if not return_mhr_parameters else fitting_parameter_results
+            ),
             result_errors=errors if return_fitting_errors else None,
         )
 
@@ -401,11 +401,131 @@ class Conversion:
         return ConversionResult(
             result_meshes=result_meshes if return_smpl_meshes else None,
             result_vertices=smpl_vertices if return_smpl_vertices else None,
-            result_parameters=fitting_parameter_results
-            if return_smpl_parameters
-            else None,
+            result_parameters=(
+                fitting_parameter_results if return_smpl_parameters else None
+            ),
             result_errors=errors if return_fitting_errors else None,
         )
+
+    def convert_sam3d_output_to_smpl(
+        self,
+        sam3d_outputs: list[dict[str, Any]],
+        return_smpl_meshes: bool = False,
+        return_smpl_parameters: bool = True,
+        return_smpl_vertices: bool = False,
+        return_fitting_errors: bool = True,
+        batch_size: int = 256,
+    ) -> ConversionResult:
+        """
+        Convert SAM3D output to SMPL model parameters.
+
+        Usage:
+            After initializing a coverter object from Conversion class,
+            sam3d_outputs = SAM3DBodyEstimator.process_one_image(...)
+            conversion_results = coverter.convert_sam3d_output_to_smpl(sam3d_outputs)
+
+        Args:
+            sam3d_outputs: List of dictionaries containing the output of the SAM3D model.
+            return_smpl_meshes: Whether to return the SMPL meshes. If True, the function will return a list
+                                of SMPL meshes.
+            return_smpl_parameters: Whether to return the SMPL parameters. If True, the function will return a
+                                    dictionary of SMPL parameters.
+            return_smpl_vertices: Whether to return the SMPL vertices. If True, the function will return a numpy
+                                  array of SMPL vertices.
+            return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for
+                                   each frame.
+            batch_size: Number of frames to process in each batch.
+
+        Returns:
+            ConversionResult containing:
+                - result_meshes: List of SMPL meshes
+                - result_vertices: Numpy array of SMPL vertices
+                - result_parameters: Dictionary of SMPL parameters
+                - result_errors: Numpy array of fitting errors for each frame
+        """
+
+        # These are the keys that are expected in the sam3d_outputs, from the first three we can extract the MHR vertices. The last one are the MHR vertices.
+        SAM3D_OUTPUT_VARIABLES = (
+            "mhr_model_params",  # Translation is not included in the model params, but in "pred_cam_t".
+            "shape_params",
+            "expr_params",
+            "pred_vertices",  # Translation is not included in the vertices, but in "pred_cam_t".
+            "pred_cam_t",  # This is the camera translation w.r.t. each person.
+        )
+
+        # The result of SAM3DBodyEstimator.process_one_image() is a list of dictionaries, each dictionary contains the outputs of the SAM3D model for one person.
+        # We concatenate all person's outputs into one dictionary, so that we can convert them to SMPL in batch.
+        concatenated_sam3d_outputs = {}
+        for k in SAM3D_OUTPUT_VARIABLES:
+            concatenated_sam3d_outputs[k] = np.stack(
+                [
+                    sam3d_output[k]
+                    for sam3d_output in sam3d_outputs
+                    if k in sam3d_output
+                ],
+                axis=0,
+            )
+            concatenated_sam3d_outputs[k] = self._to_tensor(
+                concatenated_sam3d_outputs[k]
+            )
+
+        # If MHR vertices are available, use them to compute the SMPL parameters. If not, use the MHR model, shape, and expressions to compute the SMPL parameters.
+        num_people = len(sam3d_outputs)
+        mhr_vertices = None
+        if (
+            "pred_vertices" in concatenated_sam3d_outputs
+            and concatenated_sam3d_outputs["pred_vertices"].shape[0] == num_people
+        ):
+            # If pred_vertices is available, use it to compute the target vertices
+            # Note: SAM3D outputs the vertices in meters, so we need to convert them to centimeters before passing them to the conversion function
+            mhr_vertices = (
+                100.0 * concatenated_sam3d_outputs["pred_vertices"]
+                + 100.0 * concatenated_sam3d_outputs["pred_cam_t"][:, None, :]
+            )
+        elif (
+            "mhr_model_params" in concatenated_sam3d_outputs
+            and concatenated_sam3d_outputs["mhr_model_params"].shape[0] == num_people
+        ):
+            # If pred_vertices is not available, use the mhr_model_params to compute the target vertices
+            mhr_parameters = {}
+            mhr_parameters["lbs_model_params"] = concatenated_sam3d_outputs[
+                "mhr_model_params"
+            ]
+
+            assert (
+                "shape_params" in concatenated_sam3d_outputs
+                and concatenated_sam3d_outputs["shape_params"].shape[0] == num_people
+            )
+            mhr_parameters["identity_coeffs"] = concatenated_sam3d_outputs[
+                "shape_params"
+            ]
+            assert (
+                "expr_params" in concatenated_sam3d_outputs
+                and concatenated_sam3d_outputs["expr_params"].shape[0] == num_people
+            )
+            mhr_parameters["face_expr_coeffs"] = concatenated_sam3d_outputs[
+                "expr_params"
+            ]
+            _, mhr_vertices = self._mhr_para2mesh(mhr_parameters, return_mesh=False)
+            mhr_vertices = self._to_tensor(mhr_vertices)
+            mhr_vertices[..., [1, 2]] *= -1  # Camera system difference in SAM3D-Body
+            mhr_vertices += 100.0 * concatenated_sam3d_outputs["pred_cam_t"][:, None, :]
+        else:
+            raise ValueError(
+                "Either pred_vertices or mhr_model_params must be available in the SAM3D output."
+            )
+
+        conversion_results = self.convert_mhr2smpl(
+            mhr_vertices=mhr_vertices,
+            single_identity=False,
+            is_tracking=False,
+            return_smpl_meshes=return_smpl_meshes,
+            return_smpl_parameters=return_smpl_parameters,
+            return_smpl_vertices=return_smpl_vertices,
+            return_fitting_errors=return_fitting_errors,
+            batch_size=batch_size,
+        )
+        return conversion_results
 
     def _to_tensor(self, data: torch.Tensor | np.ndarray) -> torch.Tensor:
         """Convert input data to tensor on the appropriate device."""
