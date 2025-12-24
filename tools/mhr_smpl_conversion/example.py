@@ -29,6 +29,9 @@ from mhr.mhr import MHR
 from conversion import Conversion
 
 _INPUT_FILE = "./data/example_smplx_poses.npy"  # Directory to store input data
+_SAM3D_BODY_OUTPUT_DIR = (
+    "./data/sam3d_body_outputs"  # Directory to store SAM3D body output
+)
 _OUTPUT_DIR = "./tmp_results"  # Directory to store conversion results
 
 
@@ -67,6 +70,7 @@ class DEMO:
                     if not os.path.exists(converted_smpl_model_file):
                         smpl_model_data = dict(np.load(smpl_model_file))
                         import pickle
+
                         with open(converted_smpl_model_file, "wb") as f:
                             pickle.dump(smpl_model_data, f)
                     self.smpl_model = smplx.SMPL(
@@ -97,12 +101,8 @@ class DEMO:
 
         # Example 2: Convert the SMPLX meshes to MHR with PyTorch and single identity
         if self.smplx_model is not None:
-            print(
-                "\nConverting SMPLX meshes to MHR with PyTorch and single identity."
-            )
-            example_output_dir = (
-                output_dir + "/smplx_mesh2mhr_pytorch_single_identity"
-            )
+            print("\nConverting SMPLX meshes to MHR with PyTorch and single identity.")
+            example_output_dir = output_dir + "/smplx_mesh2mhr_pytorch_single_identity"
             os.makedirs(example_output_dir, exist_ok=True)
             mhr_parameters = (
                 self.example_smplx_meshes_to_mhr_with_pytorch_single_identity(
@@ -118,6 +118,54 @@ class DEMO:
             self.example_mhr_parameters_to_smplx_pytorch_single_identity(
                 mhr_parameters, example_output_dir
             )
+
+        # Example 4: Convert the SAM3D output to SMPLX
+        if self.smplx_model is not None:
+            print("\nConverting SAM3D output to SMPLX.")
+            example_output_dir = output_dir + "/sam3d_output_to_smplx"
+            os.makedirs(example_output_dir, exist_ok=True)
+            self.example_sam3d_output_to_smplx(example_output_dir)
+
+    def example_sam3d_output_to_smplx(self, output_dir: str):
+        """Convert SAM3D output to SMPLX."""
+        mhr_model = MHR.from_files(lod=1, device=self._device)
+
+        # Load the SAM3D outputs
+        subject_files = [
+            f for f in os.listdir(_SAM3D_BODY_OUTPUT_DIR) if f.endswith(".npz")
+        ]
+        sam3d_outputs = []
+
+        for subject_file in subject_files:
+            subject_data = np.load(os.path.join(_SAM3D_BODY_OUTPUT_DIR, subject_file))
+            sam3d_outputs.append(subject_data)
+            mesh = trimesh.Trimesh(
+                subject_data["pred_vertices"] + subject_data["pred_cam_t"][None, ...],
+                mhr_model.character.mesh.faces,
+                process=False,
+            )
+            mesh.export(f"{output_dir}/{subject_file[:-4]}_sam3d.ply")
+
+        # ***** Core conversion code *****
+        converter = Conversion(
+            mhr_model=mhr_model, smpl_model=self.smplx_model, method="pytorch"
+        )
+
+        conversion_results = converter.convert_sam3d_output_to_smpl(
+            sam3d_outputs=sam3d_outputs,
+            return_smpl_meshes=True,
+            return_smpl_parameters=False,
+            return_smpl_vertices=False,
+            return_fitting_errors=True,
+        )
+
+        print("Conversion errors:")
+        print(conversion_results.result_errors)
+
+        # Save the results
+        print(f"Exporting the results to {output_dir}...")
+        for i, mesh in enumerate(conversion_results.result_meshes):
+            mesh.export(f"{output_dir}/{subject_files[i][:-4]}_result_smplx.ply")
 
     def example_smpl_parameters_to_mhr_with_pymomentum_multiple_identity(
         self, smpl_paras: dict[str, torch.Tensor], output_dir: str
@@ -301,7 +349,7 @@ def _parse_arguments():
         "--smpl",
         type=str,
         required=False,
-        default="./data/SMPL_NEUTRAL.npz",
+        default="./data/SMPL_NEUTRAL.pkl",
         help="Path to the SMPL model file. If not specified, SMPL related conversion will be skipped.",
     )
 

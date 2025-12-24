@@ -8,6 +8,7 @@ The SMPL-MHR Conversion Tool enables seamless conversion between different 3D hu
 
 - **SMPL/SMPLX → MHR**: Convert SMPL/SMPLX model parameters/meshes to MHR format
 - **MHR → SMPL/SMPLX**: Convert MHR parameters back to SMPL/SMPLX format
+- **SAM3D Outputs (MHR) → SMPL/SMPLX**: Convert SAM3D output to SMPL/SMPLX model parameters
 
 The tool uses barycentric interpolation for topology mapping and offers multiple optimization backends for parameter fitting.
 
@@ -64,6 +65,7 @@ mhr_smpl_conversion/
 │   ├── smpl_para2mhr_pymomentum
 │   ├── mhr_para2smplx_pytorch_single_identity
 │   ├── smplx_mesh2mhr_pytorch_single_identity
+│   ├── sam3d_output_to_smplx
 └──...
 ```
 
@@ -86,6 +88,14 @@ converter = Conversion(
     mhr_model=mhr_model,
     smpl_model=smplx_model,
     method="pytorch"  # or "pymomentum"
+)
+
+# Convert SAM3D output to SMPL(X)
+results = converter.convert_sam3d_output_to_smplx(
+    sam3d_outputs=sam3d_outputs,
+    return_smpl_meshes=True,
+    return_smpl_parameters=True,
+    return_fitting_errors=True
 )
 
 # Convert SMPLX to MHR
