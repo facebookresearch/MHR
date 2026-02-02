@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@v0.9.3
+        uses: prefix-dev/setup-pixi@v0.9.4
         with:
           environments: ${{ matrix.python-version }}
           cache: true
@@ -49,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up pixi
-        uses: prefix-dev/setup-pixi@v0.9.3
+        uses: prefix-dev/setup-pixi@v0.9.4
         with:
           cache: true
 
