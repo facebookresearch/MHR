@@ -20,7 +20,45 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 
 ## Installation
 
-### Option 1. Using pip
+### Option 1. Using Pixi (Recommended)
+
+[Pixi](https://pixi.sh/) is a conda-based package manager. This is the **recommended** installation method as it provides the most reliable environment setup.
+
+```bash
+# Clone the repository
+git clone git@github.com:facebookresearch/MHR.git
+cd MHR
+
+# Download and unzip the model assets
+curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
+unzip assets.zip
+
+# Install dependencies with Pixi
+pixi install
+
+# Activate the environment
+pixi shell
+```
+
+### Option 2. Using the TorchScript model
+
+```bash
+# Download the torchscript model
+curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
+
+# Unzip torchscript
+unzip -p assets.zip assets/mhr_model.pt  > mhr_model.pt
+
+# Start using the torchscript model
+```
+New to TorchScript model? In short it's a Graph mode of pytorch models. More details [here](https://docs.pytorch.org/tutorials/intermediate/torch_compile_tutorial.html#id3). You can take ./demo.py as a reference to start using the torchscript model.
+
+- Advantage: no codebase or model assets are required.
+- Disadvantage: Currently only support for LOD 1; limited access to model properties.
+
+### Option 3. Using pip (⚠️ Experimental)
+
+> **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
 
 ```bash
 # Install PyMomentum (CPU or GPU)
@@ -32,40 +70,6 @@ pip install mhr
 # Download and unzip the model assets
 curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
 unzip assets.zip
-```
-
-### Option 2. Using the torchscript model
-
-```bash
-# Download the torchscript model
-curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-
-# Unzip torchscript
-unzip -p assets.zip assets/mhr_model.pt  > mhr_model.pt
-
-# Start using the torchscript model
-```
-New to TorchScript model? In short it's a Graph mode of pytorch models. More details [here](https://docs.pytorch.org/tutorials/intermediate/torch_compile_tutorial.html#id3). You can take ./demo.py as a reference to start using th torchscript model.
-
-- Advantage: no codebase or model assets are required.
-- Disadvantage: Currently only support for LOD 1; limited access to model properties.
-
-### Option 3. Using Pixi
-
-```bash
-# Clone the repository
-git clone git@github.com:facebookresearch/MHR.git
-cd MHR
-
-# Download the and unzip model assets
-curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-unzip assets.zip
-
-# Install dependencies with Pixi
-pixi install
-
-# Activate the environment
-pixi shell
 ```
 
 
