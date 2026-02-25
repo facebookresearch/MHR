@@ -10,7 +10,11 @@ This directory contains a Jupyter notebook for visualizing MHR (Momentum Human R
 
 Google Colab is a free cloud-based Jupyter notebook environment that requires no setup and runs entirely in the cloud. We provide a few options for using the notebook with Google Colab:
 
-### Option 1: Upload to Google Colab (Recommended)
+### Option 1: Direct URL (Recommended)
+
+Click on [this link](https://colab.research.google.com/github/facebookresearch/MHR/blob/main/tools/mhr_visualization/MHR%20visualization.ipynb) to open the notebook (MHR visualization.ipynb) in Google Colab.
+
+### Option 2: Upload to Google Colab
 
 1. Go to [Google Colab](https://colab.research.google.com/)
 2. Click on **File** → **Upload notebook**
@@ -18,7 +22,7 @@ Google Colab is a free cloud-based Jupyter notebook environment that requires no
 4. Click **Choose File** and select `MHR visualization.ipynb` from your local machine
 5. The notebook will open in a new Colab tab and you can start running cells
 
-### Option 2: Open from Google Drive
+### Option 3: Open from Google Drive
 
 1. Upload `MHR visualization.ipynb` to your Google Drive
 2. Navigate to the file in Google Drive
@@ -28,14 +32,6 @@ Google Colab is a free cloud-based Jupyter notebook environment that requires no
    - Click **Connect more apps**
    - Search for "Colaboratory"
    - Install and connect the app
-
-### Option 3: Direct URL
-1. Copy the GitHub URL of the notebook
-2. Go to [Google Colab](https://colab.research.google.com/)
-3. Click **File** → **Open notebook**
-4. Select the **GitHub** tab
-5. Paste the URL or enter the repository details
-6. Select the notebook to open
 
 ## Running the Notebook
 

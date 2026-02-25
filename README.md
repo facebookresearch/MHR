@@ -95,7 +95,7 @@ This will generate a test MHR mesh and compare outputs with the TorchScript mode
 
 ![Visualization Notebook](images/visualization_notebook.png?raw=true)
 
-Interactive Jupyter notebook for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
+[Interactive Jupyter notebook](https://colab.research.google.com/github/facebookresearch/MHR/blob/main/tools/mhr_visualization/MHR%20visualization.ipynb) for MHR visualization. See [`tools/mhr_visualization/README.md`](tools/mhr_visualization/README.md).
 
 
 ### SMPL/SMPL-X Conversion
