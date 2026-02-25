@@ -12,7 +12,7 @@ Google Colab is a free cloud-based Jupyter notebook environment that requires no
 
 ### Option 1: Direct URL (Recommended)
 
-Click on [this link](https://colab.research.google.com/github/facebookresearch/MHR/blob/main/tools/mhr_visualization/MHR%20visualization.ipynb) to open the notebook in Google Colab.Copy the GitHub URL of the notebook
+Click on [this link](https://colab.research.google.com/github/facebookresearch/MHR/blob/main/tools/mhr_visualization/MHR%20visualization.ipynb) to open the notebook (MHR visualization.ipynb) in Google Colab.
 
 ### Option 2: Upload to Google Colab
 
