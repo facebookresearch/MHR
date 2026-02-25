@@ -59,7 +59,7 @@ class DEMO:
                 self.smpl_model = smplx.SMPL(
                     model_path=smpl_model_file,
                 )
-            except:
+            except Exception:
                 print(
                     "If the provided SMPL model file is a .pkl file, please make sure it is chumpy free."
                 )
