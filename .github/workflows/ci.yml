@@ -47,8 +47,7 @@ jobs:
 
       - name: Download and unzip assets
         run: |
-          curl -OL https://github.com/facebookresearch/MHR/releases/download/v1.0.0/assets.zip
-          unzip assets.zip
+          pixi run -e ${{ matrix.python-version }} download-assets
 
       - name: Test demo
         run: |
