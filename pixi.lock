@@ -4541,6 +4541,7 @@ packages:
   version: 1.0.0.post16+ga6e6da4f9.d20251202
   sha256: 548d48b8b8eba1e3094fc70ec0fd9b4ceb20ae2ee511aa1c5a2de3013a760501
   requires_dist:
+  - numpy
   - torch
   - trimesh>=4.8.3,<5
   - pytest>=8.0 ; extra == 'test'

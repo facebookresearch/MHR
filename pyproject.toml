@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "MHR Contributors"}]
-dependencies = ["torch", "trimesh>=4.8.3,<5"]
+dependencies = ["numpy", "torch", "trimesh>=4.8.3,<5"]
 name = "mhr"
 requires-python = ">= 3.11"
 dynamic = ["version"]
