@@ -1,0 +1,9 @@
+{
+  "name": "mhr-threejs-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Three.js web viewer for the Momentum Human Rig model",
+  "dependencies": {
+    "three": "0.180.0"
+  }
+}

@@ -1,0 +1,20 @@
+# JavaScript dependencies
+node_modules/
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+TAKEAWAY.md
+run.ps1
+*.log
+
+# Local environments and editor files
+.venv/
+.env
+.vscode/
+.idea/
+
+# Local outputs
+exports/
+screenshots/

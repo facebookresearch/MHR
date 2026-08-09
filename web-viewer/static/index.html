@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#11151c">
+  <title>MHR Web Viewer</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">Momentum Human Rig</div>
+      <h1>MHR Web Viewer</h1>
+    </div>
+    <div class="topbar-stats" aria-label="Model statistics">
+      <div><span id="vertex-count">—</span><small>vertices</small></div>
+      <div><span id="face-count">—</span><small>faces</small></div>
+      <div><span id="joint-count">—</span><small>joints</small></div>
+      <div><span id="render-time">—</span><small>inference</small></div>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="controls" aria-label="MHR controls">
+      <nav class="group-tabs" aria-label="Parameter groups">
+        <button class="tab is-active" data-group="pose" type="button">
+          Pose <span id="pose-count"></span>
+        </button>
+        <button class="tab" data-group="identity" type="button">
+          Identity <span id="identity-count"></span>
+        </button>
+        <button class="tab" data-group="expression" type="button">
+          Expression <span id="expression-count"></span>
+        </button>
+      </nav>
+
+      <section class="control-section" aria-labelledby="parameter-heading">
+        <div class="section-heading">
+          <h2 id="parameter-heading">Parameter</h2>
+          <span id="filtered-count" class="quiet"></span>
+        </div>
+
+        <label class="field">
+          <span>Search</span>
+          <input id="parameter-search" type="search" placeholder="Filter parameters…" autocomplete="off">
+        </label>
+
+        <label id="category-field" class="field">
+          <span>Category</span>
+          <select id="category-select"></select>
+        </label>
+
+        <div class="field">
+          <span>Selected parameter</span>
+          <div
+            id="parameter-select"
+            class="parameter-list"
+            role="listbox"
+            aria-label="Selected parameter"
+          ></div>
+        </div>
+
+        <div class="parameter-readout">
+          <div>
+            <span class="quiet">Value</span>
+            <input
+              id="value-readout"
+              type="number"
+              aria-label="Parameter value"
+            >
+          </div>
+          <div>
+            <span class="quiet">Range</span>
+            <strong id="range-readout">—</strong>
+          </div>
+        </div>
+
+        <label class="field range-field">
+          <span>Adjust</span>
+          <input id="parameter-slider" type="range">
+        </label>
+
+        <div id="joints-field" class="field">
+          <span>Affected joints</span>
+          <div id="joint-list" class="joint-list">—</div>
+        </div>
+
+        <div class="button-row three">
+          <button id="reset-current" type="button">Reset current</button>
+          <button id="reset-group" type="button">Reset group</button>
+          <button id="reset-all" class="danger" type="button">Reset all</button>
+        </div>
+      </section>
+
+      <details class="control-section">
+        <summary>Appearance</summary>
+        <div class="details-body">
+          <div class="color-row">
+            <label class="field">
+              <span>Body</span>
+              <input id="body-color" type="color" value="#b48c46">
+            </label>
+            <label class="field">
+              <span>Background</span>
+              <input id="background-color" type="color" value="#171c25">
+            </label>
+          </div>
+
+          <label class="check-row">
+            <input id="wireframe-toggle" type="checkbox">
+            <span>Wireframe</span>
+          </label>
+          <label class="check-row">
+            <input id="skeleton-toggle" type="checkbox">
+            <span>Skeleton</span>
+          </label>
+          <label class="check-row">
+            <input id="grid-toggle" type="checkbox" checked>
+            <span>Ground grid</span>
+          </label>
+          <label class="check-row">
+            <input id="axes-toggle" type="checkbox">
+            <span>World axes</span>
+          </label>
+        </div>
+      </details>
+
+      <details class="control-section">
+        <summary>Camera</summary>
+        <div class="details-body">
+          <div class="button-row four">
+            <button data-view="front" type="button">Front</button>
+            <button data-view="left" type="button">Left</button>
+            <button data-view="right" type="button">Right</button>
+            <button data-view="back" type="button">Back</button>
+          </div>
+          <div class="button-row">
+            <button id="camera-reset" type="button">Fit model</button>
+            <button id="projection-toggle" type="button">Orthographic</button>
+          </div>
+        </div>
+      </details>
+    </aside>
+
+    <section class="viewer-column">
+      <div id="viewport" class="viewport" aria-label="Interactive Three.js MHR viewport">
+        <canvas id="viewer-canvas"></canvas>
+        <div class="viewport-toolbar">
+          <span class="engine-badge">THREE.JS</span>
+          <button id="screenshot-button" type="button">Save PNG</button>
+          <button id="fullscreen-button" type="button">Fullscreen</button>
+        </div>
+        <div id="loading-overlay" class="loading-overlay">
+          <div class="spinner" aria-hidden="true"></div>
+          <span id="loading-text">Loading MHR model…</span>
+        </div>
+        <div id="bone-tooltip" class="bone-tooltip" role="tooltip" hidden></div>
+        <div class="viewport-help">Orbit: drag · Pan: right-drag · Zoom: wheel</div>
+      </div>
+
+      <div class="statusbar">
+        <div id="status" class="status" role="status" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="status-text">Starting viewer…</span>
+        </div>
+        <div id="active-parameter" class="active-parameter">—</div>
+      </div>
+    </section>
+
+    <aside class="model-settings" aria-label="Model settings">
+      <section class="control-section" aria-labelledby="model-settings-heading">
+        <div class="section-heading">
+          <h2 id="model-settings-heading">Model</h2>
+          <span class="quiet">Runtime</span>
+        </div>
+
+        <div class="model-setting">
+          <div>
+            <strong>Pose correctives</strong>
+            <small>Learned surface deformation for articulated poses.</small>
+          </div>
+          <button
+            id="correctives-toggle"
+            class="switch-button is-on"
+            type="button"
+            role="switch"
+            aria-checked="true"
+          >
+            <span id="correctives-state">On</span>
+            <span class="switch-track" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <label class="field lod-field">
+          <span>Level of detail</span>
+          <select id="lod-select" aria-describedby="lod-help"></select>
+        </label>
+
+        <div id="lod-summary" class="lod-summary">LOD 1</div>
+        <p id="lod-help" class="model-note">
+          LOD 0 has the densest mesh; LOD 6 is the lightest.
+        </p>
+      </section>
+
+      <section class="control-section" aria-labelledby="export-heading">
+        <div class="section-heading">
+          <h2 id="export-heading">Export</h2>
+          <span class="quiet">Mesh</span>
+        </div>
+
+        <label class="field">
+          <span>File format</span>
+          <select id="export-format"></select>
+        </label>
+
+        <div class="export-option">
+          <div class="export-option-copy">
+            <span>Snap to ground</span>
+          </div>
+          <button
+            id="export-ground-toggle"
+            class="switch-button is-on"
+            type="button"
+            role="switch"
+            aria-label="Snap to ground"
+            aria-checked="true"
+          >
+            <span id="export-ground-state">On</span>
+            <span class="switch-track" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <button id="export-button" class="export-button" type="button">
+          Export current model
+        </button>
+        <p class="model-note">
+          OBJ mesh · GLB/USD rigged · meters · Y-up
+        </p>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
