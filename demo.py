@@ -30,6 +30,8 @@ def run():
     batch_size = 2
     identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(batch_size)
 
+    # This demo performs inference only. For optimization, enable gradients on
+    # the desired inputs before this call and do not use torch.no_grad().
     with torch.no_grad():
         verts, skel_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
 
@@ -46,6 +48,7 @@ def compare_with_torchscript_model():
     batch_size = 128
     identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(batch_size)
 
+    # Model comparison does not need an autograd graph.
     with torch.no_grad():
         verts, _ = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
         verts_ts, _ = scripted_model(identity_coeffs, model_parameters, face_expr_coeffs)

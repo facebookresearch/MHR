@@ -15,7 +15,7 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 - **Facial Expression**: 72 expression parameters for detailed face animation
 - **Multiple LOD Levels**: 7 levels of detail (LOD 0-6) for different performance requirements
 - **Non-linear Pose Correctives**: Neural network-based pose-dependent deformations
-- **PyTorch Integration**: GPU-accelerated inference for real-time applications
+- **PyTorch Integration**: Differentiable inference and optimization on CPU or GPU
 - **[PyMomentum](https://facebookresearch.github.io/momentum/) Integration**: Compatible with fast CPU solver
 
 ## Installation
@@ -118,6 +118,30 @@ face_expr_coeffs = 0.3 * torch.randn(batch_size, 72)     # Facial expression
 # Generate mesh vertices and skeleton information (joint orientation and positions).
 vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
 ```
+
+### Computing gradients
+
+Both the Python and TorchScript models support standard PyTorch autograd.
+Enable gradients only on the inputs you want to optimize before the forward
+pass, and keep gradient mode enabled; do not wrap the call in `torch.no_grad()`
+or `torch.inference_mode()`:
+
+```python
+identity_coeffs.requires_grad_()
+model_parameters.requires_grad_()
+face_expr_coeffs.requires_grad_()
+
+vertices, skeleton_state = mhr_model(
+    identity_coeffs,
+    model_parameters,
+    face_expr_coeffs,
+)
+loss = vertices.square().mean()
+loss.backward()
+```
+
+The calls in `demo.py` use `torch.no_grad()` because that script performs
+inference only.
 
 ## Model Parameters
 

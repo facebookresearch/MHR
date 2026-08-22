@@ -152,6 +152,51 @@ class TestMHRModel(unittest.TestCase):
         self.assertTrue(res_verts.shape[0] == self.batch_size)
         self.assertTrue(res_skel.shape[0] == self.batch_size)
 
+    def test_model_supports_input_gradients(self):
+        """Test gradients with respect to identity, pose, and expression inputs."""
+
+        character = pym_geometry.create_test_character()
+        character = character.with_blend_shape(_build_blend_shape(character))
+        mhr_model = MHR(
+            character,
+            MHRPoseCorrectivesModelDummy(character.mesh.n_vertices),
+            device=self.device,
+        )
+        num_model_parameters = (
+            mhr_model.character.parameter_transform.size
+            - mhr_model.get_num_identity_blendshapes()
+            - mhr_model.get_num_face_expression_blendshapes()
+        )
+        inputs = (
+            torch.zeros(
+                1,
+                mhr_model.get_num_identity_blendshapes(),
+                device=self.device,
+                requires_grad=True,
+            ),
+            torch.zeros(
+                1,
+                num_model_parameters,
+                device=self.device,
+                requires_grad=True,
+            ),
+            torch.zeros(
+                1,
+                mhr_model.get_num_face_expression_blendshapes(),
+                device=self.device,
+                requires_grad=True,
+            ),
+        )
+
+        vertices, _ = mhr_model(*inputs)
+        vertices.square().mean().backward()
+
+        self.assertTrue(vertices.requires_grad)
+        for value in inputs:
+            self.assertIsNotNone(value.grad)
+            self.assertTrue(torch.isfinite(value.grad).all())
+            self.assertGreater(torch.count_nonzero(value.grad).item(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
