@@ -14,6 +14,7 @@ import trimesh
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+import server as server_module  # noqa: E402
 from server import DEFAULT_MODEL_PATH, create_app  # noqa: E402
 
 
@@ -329,7 +330,7 @@ def test_snap_to_ground_is_driven_by_root_ty(client):
         },
     )
     assert managed_update.status_code == 400
-    assert "managed" in managed_update.json["error"]
+    assert managed_update.json == {"error": "Invalid deformation request."}
 
     unsnapped = client.post(
         "/api/configure",
@@ -436,6 +437,56 @@ def test_export_validation(client):
     response = client.get("/api/export/obj?ground=yes")
     assert response.status_code == 400
     assert "has been removed" in response.json["error"]
+
+
+def test_exception_details_are_not_exposed(client, monkeypatch):
+    sensitive_detail = "/srv/private/mhr_model.pt: password=super-secret"
+
+    def raise_value_error(*_args, **_kwargs):
+        raise ValueError(sensitive_detail)
+
+    engine = client.application.config["MHR_ENGINE"]
+    monkeypatch.setattr(engine, "update", raise_value_error)
+    monkeypatch.setattr(engine, "configure", raise_value_error)
+
+    deform = client.post("/api/deform", json={})
+    configure = client.post("/api/configure", json={})
+
+    assert deform.status_code == 400
+    assert deform.json == {"error": "Invalid deformation request."}
+    assert configure.status_code == 400
+    assert configure.json == {"error": "Invalid configuration request."}
+    assert sensitive_detail not in deform.get_data(as_text=True)
+    assert sensitive_detail not in configure.get_data(as_text=True)
+
+
+def test_export_exception_details_are_not_exposed(client, monkeypatch):
+    sensitive_detail = "/srv/private/mhr_model.pt: password=super-secret"
+
+    def raise_value_error(*_args, **_kwargs):
+        raise ValueError(sensitive_detail)
+
+    def raise_runtime_error(*_args, **_kwargs):
+        raise RuntimeError(sensitive_detail)
+
+    monkeypatch.setattr(server_module, "normalize_export_format", raise_value_error)
+    invalid_format = client.get("/api/export/obj")
+    monkeypatch.setattr(server_module, "normalize_export_format", lambda value: value)
+    monkeypatch.setattr(server_module, "export_mesh", raise_value_error)
+    invalid_export = client.get("/api/export/obj")
+    monkeypatch.setattr(server_module, "export_mesh", raise_runtime_error)
+    unavailable_export = client.get("/api/export/obj")
+
+    assert invalid_format.status_code == 400
+    assert "Unsupported export format" in invalid_format.json["error"]
+    assert invalid_export.status_code == 400
+    assert invalid_export.json == {"error": "Invalid mesh export request."}
+    assert unavailable_export.status_code == 503
+    assert unavailable_export.json == {
+        "error": "Mesh export is temporarily unavailable."
+    }
+    for response in (invalid_format, invalid_export, unavailable_export):
+        assert sensitive_detail not in response.get_data(as_text=True)
 
 
 def test_glb_export_contains_armature_and_lbs_weights(client):

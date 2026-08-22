@@ -574,16 +574,16 @@ def create_app(model_path: Path = DEFAULT_MODEL_PATH) -> Flask:
     def deform() -> tuple[Response, int] | Response:
         try:
             snapshot = engine.update(_json_request())
-        except ValueError as error:
-            return jsonify({"error": str(error)}), 400
+        except ValueError:
+            return jsonify({"error": "Invalid deformation request."}), 400
         return _geometry_response(snapshot)
 
     @app.post("/api/configure")
     def configure() -> tuple[Response, int] | Response:
         try:
             engine.configure(_json_request())
-        except ValueError as error:
-            return jsonify({"error": str(error)}), 400
+        except ValueError:
+            return jsonify({"error": "Invalid configuration request."}), 400
         return jsonify(engine.metadata())
 
     @app.get("/api/export/<file_format>")
@@ -603,8 +603,8 @@ def create_app(model_path: Path = DEFAULT_MODEL_PATH) -> Flask:
 
         try:
             normalized_format = normalize_export_format(file_format)
-        except ValueError as error:
-            return jsonify({"error": str(error)}), 400
+        except ValueError:
+            return jsonify({"error": "Unsupported export format."}), 400
 
         with engine.lock:
             vertices = engine.snapshot.vertices.copy()
@@ -627,10 +627,10 @@ def create_app(model_path: Path = DEFAULT_MODEL_PATH) -> Flask:
                 )
         try:
             result = export_mesh(vertices, faces, normalized_format, rig)
-        except ValueError as error:
-            return jsonify({"error": str(error)}), 400
-        except RuntimeError as error:
-            return jsonify({"error": str(error)}), 503
+        except ValueError:
+            return jsonify({"error": "Invalid mesh export request."}), 400
+        except RuntimeError:
+            return jsonify({"error": "Mesh export is temporarily unavailable."}), 503
 
         ground_suffix = "-grounded" if snap_to_ground else ""
         filename = f"mhr-lod{lod}-r{revision}{ground_suffix}.{result.extension}"
