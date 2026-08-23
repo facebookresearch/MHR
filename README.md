@@ -156,8 +156,9 @@ inference only.
 
 ### Expression Parameters (`face_expr_coeffs`)
 - **Shape**: `[batch_size, 72]`
-- **Description**: Facial expression blendshape weights
+- **Description**: Artist-sculpted, sparse semantic blendshape weights that follow FACS. These are not PCA components or a one-to-one list of FACS Action Units.
 - **Typical Range**: -1 to +1
+- **Names and indices**: See the [facial expression mapping](docs/face-expressions.md), or import `FACE_EXPRESSION_NAMES` from `mhr`.
 
 ## Project Structure
 

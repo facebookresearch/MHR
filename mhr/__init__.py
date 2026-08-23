@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .face_expression import FACE_EXPRESSION_NAMES
+
 try:
     from ._version import __version__
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-__all__ = ["__version__"]
+__all__ = ["FACE_EXPRESSION_NAMES", "__version__"]

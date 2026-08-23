@@ -25,6 +25,7 @@ import pymomentum.torch.character as torch_character
 
 import torch
 
+from .face_expression import FACE_EXPRESSION_NAMES
 from .io import (
     get_corrective_activation_path,
     get_default_asset_folder,
@@ -38,7 +39,7 @@ from .utils import batch6DFromXYZ
 
 LOD = Literal[0, 1, 2, 3, 4, 5, 6]
 NUM_IDENTITY_BLENDSHAPES = 45
-NUM_FACE_EXPRESSION_BLENDSHAPES = 72
+NUM_FACE_EXPRESSION_BLENDSHAPES = len(FACE_EXPRESSION_NAMES)
 
 
 class MHRPoseCorrectivesModel(torch.nn.Module):
