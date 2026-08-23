@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -o output_dir
+pixi run python example.py --smpl path/to/smpl/model.npz --smplx path/to/smplx/model.npz -o output_dir
 """
 
 
@@ -26,6 +26,7 @@ import smplx
 import torch
 import trimesh
 from mhr.mhr import MHR
+from mhr.smpl import load_smpl_model
 from conversion import Conversion
 
 _INPUT_FILE = "./data/example_smplx_poses.npy"  # Directory to store input data
@@ -50,32 +51,7 @@ class DEMO:
         smplx_model_file: str | None,
     ):
         if smpl_model_file is not None:
-            # Unfortunately, SMPL model .pkl file may come with Chumpy, which is not compatible with
-            # latest Python versions. Although the latest official SMPL model in .npz format is chumpy
-            # free, the default smplx package does not support .npz file as SMPL model file.
-            # So please provide either a chumpy-free SMPL model .pkl file or the official .npz file,
-            # from which, a chumpy-free SMPL model .pkl file can be created.
-            try:
-                self.smpl_model = smplx.SMPL(
-                    model_path=smpl_model_file,
-                )
-            except:
-                print(
-                    "If the provided SMPL model file is a .pkl file, please make sure it is chumpy free."
-                )
-                if smpl_model_file.endswith(".npz"):
-                    converted_smpl_model_file = smpl_model_file.replace(
-                        ".npz", "_generate_from_npz.pkl"
-                    )
-                    if not os.path.exists(converted_smpl_model_file):
-                        smpl_model_data = dict(np.load(smpl_model_file))
-                        import pickle
-
-                        with open(converted_smpl_model_file, "wb") as f:
-                            pickle.dump(smpl_model_data, f)
-                    self.smpl_model = smplx.SMPL(
-                        model_path=converted_smpl_model_file,
-                    )
+            self.smpl_model = load_smpl_model(smpl_model_file)
         if smplx_model_file is not None:
             self.smplx_model = smplx.SMPLX(
                 model_path=smplx_model_file,
@@ -349,8 +325,8 @@ def _parse_arguments():
         "--smpl",
         type=str,
         required=False,
-        default="./data/SMPL_NEUTRAL.pkl",
-        help="Path to the SMPL model file. If not specified, SMPL related conversion will be skipped.",
+        default="./data/SMPL_NEUTRAL.npz",
+        help="Path to a standard SMPL .npz or Chumpy-free .pkl model file.",
     )
 
     parser.add_argument(
