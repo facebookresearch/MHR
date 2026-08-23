@@ -195,7 +195,12 @@ class MHR(torch.nn.Module):
         face_expr_coeffs: torch.Tensor | None,
         apply_correctives: bool = True,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute vertices given input parameters."""
+        """Compute vertices given input parameters.
+
+        The computation follows standard PyTorch autograd semantics: outputs
+        track gradients when grad mode is enabled and relevant inputs require
+        gradients.
+        """
 
         # identity_coeffs: [b=batch_size, c=num_shape_coeff]
         # model_parameters: [b=batch_size, c=num_model_params (rigid, pose, scale)]
