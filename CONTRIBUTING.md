@@ -12,6 +12,19 @@ We actively welcome your pull requests.
 5. Make sure your code lints.
 6. If you haven't already, complete the Contributor License Agreement ("CLA").
 
+## Regenerating release assets
+
+Converted assets are generated from the legacy FBX release assets in a
+PyMomentum-enabled environment:
+
+```bash
+pixi run -e legacy-py312 python scripts/convert_assets.py \
+  --assets assets --output dist/assets --momentum-version 0.1.114
+```
+
+The command is deterministic. Run it twice and compare the generated SHA-256
+values before uploading the manifest and bundles to a release.
+
 ## Contributor License Agreement ("CLA")
 In order to accept your pull request, we need you to submit a CLA. You only need
 to do this once to work on any of Facebook's open source projects.

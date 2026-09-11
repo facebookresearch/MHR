@@ -18,18 +18,17 @@ permissions:
 
 jobs:
   test:
-    name: py-${{ matrix.python-version }}-${{ matrix.platform }}
+    name: ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux only (pymomentum-gpu only available on Linux)
           - os: ubuntu-latest
-            platform: linux-64
+            python-version: py311
+          - os: ubuntu-latest
             python-version: py312
           - os: ubuntu-latest
-            platform: linux-64
             python-version: py313
     steps:
       - name: Checkout
@@ -45,10 +44,33 @@ jobs:
         run: |
           pixi run -e ${{ matrix.python-version }} test
 
+      - name: Build and test wheel
+        if: matrix.python-version == 'py312'
+        run: |
+          pixi run -e py312 wheel-build
+          pixi run -e py312 wheel-test
+
+  legacy-demo:
+    name: legacy-assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          environments: legacy-py312
+          cache: true
+
       - name: Download and unzip assets
         run: |
-          pixi run -e ${{ matrix.python-version }} download-assets
+          pixi run -e legacy-py312 download-assets
+
+      - name: Test converted-runtime parity
+        run: |
+          MHR_TEST_ASSETS=assets pixi run -e legacy-py312 pytest tests/test_asset_conversion.py -q
 
       - name: Test demo
         run: |
-          pixi run -e ${{ matrix.python-version }} demo
+          pixi run -e legacy-py312 demo

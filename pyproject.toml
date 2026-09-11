@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "MHR Contributors"}]
-dependencies = ["numpy", "torch", "trimesh>=4.8.3,<5"]
+dependencies = ["numpy", "torch"]
 name = "mhr"
 requires-python = ">= 3.11"
 dynamic = ["version"]
@@ -38,7 +38,6 @@ channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
 
 [tool.pixi.tasks]
-demo = { cmd = "python demo.py", description = "Run demo script" }
 download-assets = { cmd = "python -m mhr.download_assets", description = "Download and extract release assets" }
 test = { cmd = "pytest tests/ -v", description = "Run pytest tests with verbose output" }
 wheel-clean = { cmd = "rm -rf dist build *.egg-info", description = "Wheel: Clean build artifacts and distribution files" }
@@ -55,8 +54,15 @@ uv = ">=0.5.0"
 hatchling = "*"
 hatch-vcs = "*"
 
-[tool.pixi.dependencies]
-pymomentum = ">=0.1.90"
+[tool.pixi.feature.demo.dependencies]
+pymomentum-cpu = ">=0.1.111,<0.2"
+trimesh = ">=4.8.3,<5"
+
+[tool.pixi.feature.demo.tasks]
+demo = { cmd = "python demo.py", description = "Run the legacy FBX demo" }
+
+[tool.pixi.feature.py311.dependencies]
+python = "3.11.*"
 
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"
@@ -66,5 +72,7 @@ python = "3.13.*"
 
 [tool.pixi.environments]
 default = ["py312"]
+py311 = ["py311"]
 py312 = ["py312"]
 py313 = ["py313"]
+legacy-py312 = ["py312", "demo"]

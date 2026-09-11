@@ -15,11 +15,13 @@
 
 import unittest
 
-import pymomentum.geometry as pym_geometry
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import torch
 
-from mhr.mhr import LOD, MHR, NUM_FACE_EXPRESSION_BLENDSHAPES, NUM_IDENTITY_BLENDSHAPES
+from mhr.mhr import MHR
+from tests.test_torch_rig import _write_assets
 
 
 class MHRPoseCorrectivesModelDummy(torch.nn.Module):
@@ -35,25 +37,25 @@ class MHRPoseCorrectivesModelDummy(torch.nn.Module):
         )
 
 
-def _build_blend_shape(
-    c: pym_geometry.Character,
-) -> pym_geometry.BlendShape:
-    torch.manual_seed(0)
-    n_pts = c.mesh.n_vertices
-    n_blend = 4
-    shape_base = torch.rand(n_pts, 3)
-    shape_vectors = torch.rand(
-        NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES, n_pts, 3
-    )
-    return pym_geometry.BlendShape.from_tensors(shape_base, shape_vectors)
-
-
 class TestMHRModel(unittest.TestCase):
     """Test MHR model."""
 
     def setUp(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.batch_size = 10
+        self.temp_dir = TemporaryDirectory()
+        _write_assets(Path(self.temp_dir.name))
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _model(self, with_correctives: bool) -> MHR:
+        model = MHR.from_files(Path(self.temp_dir.name), device=self.device, lod=1)
+        if with_correctives:
+            model.pose_correctives_model = MHRPoseCorrectivesModelDummy(
+                model.character_torch.mesh.rest_vertices.shape[0]
+            ).to(self.device)
+        return model
 
     def _instantiate_model(
         self,
@@ -66,9 +68,8 @@ class TestMHRModel(unittest.TestCase):
         n_id_blendshapes = model.get_num_identity_blendshapes()
         # Only include rigid, pose and scaling parameters in the model parameters to be passed
         n_model_params = (
-            model.character.parameter_transform.size
-            - n_id_blendshapes
-            - model.get_num_face_expression_blendshapes()
+            model.character_torch.parameter_transform.parameter_transform.shape[1]
+            - (n_id_blendshapes + model.get_num_face_expression_blendshapes())
         )
 
         coeffs = torch.rand(1, n_id_blendshapes).to(self.device)
@@ -91,14 +92,7 @@ class TestMHRModel(unittest.TestCase):
     def test_model_with_pose_correctives(self):
         """Test body model construction and forward call, applying pose correctives."""
 
-        character = pym_geometry.create_test_character()
-        character = character.with_blend_shape(_build_blend_shape(character))
-        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        mhr_model = MHR(
-            character,
-            pose_correctives_model,
-            device=self.device,
-        )
+        mhr_model = self._model(with_correctives=True)
         res_verts, res_skel = self._instantiate_model(mhr_model)
         self.assertTrue(res_verts.shape[0] == self.batch_size)
         self.assertTrue(res_skel.shape[0] == self.batch_size)
@@ -106,14 +100,7 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_loading_pose_correctives(self):
         """Test body model construction and forward call, without loading pose correctives."""
 
-        character = pym_geometry.create_test_character()
-        character = character.with_blend_shape(_build_blend_shape(character))
-        pose_correctives_model = None
-        mhr_model = MHR(
-            character,
-            pose_correctives_model,
-            device=self.device,
-        )
+        mhr_model = self._model(with_correctives=False)
         res_verts, res_skel = self._instantiate_model(mhr_model)
         self.assertTrue(res_verts.shape[0] == self.batch_size)
         self.assertTrue(res_skel.shape[0] == self.batch_size)
@@ -121,14 +108,7 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_applying_pose_correctives(self):
         """Test body model construction and forward call, without applying pose correctives."""
 
-        character = pym_geometry.create_test_character()
-        character = character.with_blend_shape(_build_blend_shape(character))
-        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        mhr_model = MHR(
-            character,
-            pose_correctives_model,
-            device=self.device,
-        )
+        mhr_model = self._model(with_correctives=True)
         res_verts, res_skel = self._instantiate_model(
             mhr_model, apply_pose_correctives=False
         )
@@ -138,14 +118,7 @@ class TestMHRModel(unittest.TestCase):
     def test_model_without_applying_pose_correctives_and_face_expr(self):
         """Test body model construction and forward call, without applying pose correctives and facial expressions."""
 
-        character = pym_geometry.create_test_character()
-        character = character.with_blend_shape(_build_blend_shape(character))
-        pose_correctives_model = MHRPoseCorrectivesModelDummy(character.mesh.n_vertices)
-        mhr_model = MHR(
-            character,
-            pose_correctives_model,
-            device=self.device,
-        )
+        mhr_model = self._model(with_correctives=True)
         res_verts, res_skel = self._instantiate_model(
             mhr_model, apply_face_expressions=False, apply_pose_correctives=False
         )
@@ -155,17 +128,13 @@ class TestMHRModel(unittest.TestCase):
     def test_model_supports_input_gradients(self):
         """Test gradients with respect to identity, pose, and expression inputs."""
 
-        character = pym_geometry.create_test_character()
-        character = character.with_blend_shape(_build_blend_shape(character))
-        mhr_model = MHR(
-            character,
-            MHRPoseCorrectivesModelDummy(character.mesh.n_vertices),
-            device=self.device,
-        )
+        mhr_model = self._model(with_correctives=True)
         num_model_parameters = (
-            mhr_model.character.parameter_transform.size
-            - mhr_model.get_num_identity_blendshapes()
-            - mhr_model.get_num_face_expression_blendshapes()
+            mhr_model.character_torch.parameter_transform.parameter_transform.shape[1]
+            - (
+                mhr_model.get_num_identity_blendshapes()
+                + mhr_model.get_num_face_expression_blendshapes()
+            )
         )
         inputs = (
             torch.zeros(
@@ -189,7 +158,7 @@ class TestMHRModel(unittest.TestCase):
         )
 
         vertices, _ = mhr_model(*inputs)
-        vertices.square().mean().backward()
+        vertices.sum().backward()
 
         self.assertTrue(vertices.requires_grad)
         for value in inputs:
