@@ -14,24 +14,24 @@
 
 
 import os
+import warnings
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
-import pymomentum.geometry as pym_geometry
-
-import pymomentum.torch.character as torch_character
-
 import torch
 
+from ._torch_rig import PARAMETERS_PER_JOINT, TorchCharacter
 from .face_expression import FACE_EXPRESSION_NAMES
 from .io import (
     get_corrective_activation_path,
     get_default_asset_folder,
     get_mhr_blendshapes_path,
     get_mhr_fbx_path,
+    get_mhr_lod_path,
     get_mhr_model_path,
+    get_mhr_rig_path,
     has_pose_corrective_blendshapes,
     load_pose_dirs_predictor,
 )
@@ -40,6 +40,10 @@ from .utils import batch6DFromXYZ
 LOD = Literal[0, 1, 2, 3, 4, 5, 6]
 NUM_IDENTITY_BLENDSHAPES = 45
 NUM_FACE_EXPRESSION_BLENDSHAPES = len(FACE_EXPRESSION_NAMES)
+_LEGACY_DEPENDENCY_ERROR = (
+    "legacy FBX assets require the optional pymomentum-cpu or pymomentum-gpu package; "
+    "download converted MHR assets instead"
+)
 
 
 class MHRPoseCorrectivesModel(torch.nn.Module):
@@ -57,7 +61,7 @@ class MHRPoseCorrectivesModel(torch.nn.Module):
         """Compute pose features, input to the pose correctives network, based on joint parameters."""
 
         joint_euler_angles = joint_parameters.reshape(
-            joint_parameters.shape[0], -1, pym_geometry.PARAMETERS_PER_JOINT
+            joint_parameters.shape[0], -1, PARAMETERS_PER_JOINT
         )[
             :, 2:, 3:6
         ]  # Extract rotations (Euler XYZ) from joint parameters, excluding the first two joints (not defining local pose)
@@ -83,62 +87,175 @@ class MHR(torch.nn.Module):
 
     def __init__(
         self,
-        character: pym_geometry.Character,
+        character: Any,
+        pose_correctives_model: MHRPoseCorrectivesModel | None,
+        device: torch.device | str,
+    ) -> None:
+        """Create MHR from a legacy PyMomentum Character.
+
+        New code should use :meth:`from_files`, which loads the portable tensor
+        assets without importing PyMomentum.
+        """
+        super().__init__()
+        warnings.warn(
+            "Passing a PyMomentum Character to MHR is deprecated; use "
+            "MHR.from_files() with converted assets instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        device = torch.device(device)
+
+        self.pose_correctives_model = pose_correctives_model
+        self._legacy_character = character
+        try:
+            from pymomentum.torch.character import Character as PyMomentumCharacter
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(_LEGACY_DEPENDENCY_ERROR) from exc
+
+        self.character_torch = PyMomentumCharacter(character).to(device)
+
+    @classmethod
+    def _from_converted_assets(
+        cls,
+        character_torch: TorchCharacter,
+        character_view: object,
         pose_correctives_model: MHRPoseCorrectivesModel | None,
         device: torch.device,
-    ) -> None:
-        super().__init__()
+    ) -> "MHR":
+        model = cls.__new__(cls)
+        torch.nn.Module.__init__(model)
+        model.pose_correctives_model = pose_correctives_model
+        model._legacy_character = character_view
+        model.character_torch = character_torch.to(device)
+        if model.pose_correctives_model is not None:
+            model.pose_correctives_model.to(device)
+        return model
 
-        # Save pose correctives model
-        self.pose_correctives_model = pose_correctives_model
+    @property
+    def character(self) -> object:
+        """Return the deprecated CPU compatibility view of the character."""
 
-        # Save cpu/gpu characters
-        self.character = character
-        # Note that this call also instantiates the identity and face expressions model
-        self.character_torch = torch_character.Character(character).to(device)
+        warnings.warn(
+            "MHR.character is deprecated; use MHR.faces or the model outputs instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._legacy_character
+
+    @property
+    def faces(self) -> torch.Tensor:
+        """Return mesh triangle indices on the model's current device."""
+
+        return self.character_torch.mesh.faces
+
+    @staticmethod
+    def _load_pose_correctives(
+        blendshapes_path: str,
+        corrective_activation_path: str | None,
+        device: torch.device,
+    ) -> MHRPoseCorrectivesModel | None:
+        with np.load(blendshapes_path, allow_pickle=False) as blendshapes_data:
+            if not (
+                has_pose_corrective_blendshapes(blendshapes_data)
+                and corrective_activation_path is not None
+            ):
+                return None
+            with np.load(
+                corrective_activation_path, allow_pickle=False
+            ) as corrective_activation_data:
+                return MHRPoseCorrectivesModel(
+                    load_pose_dirs_predictor(
+                        blendshapes_data,
+                        corrective_activation_data,
+                        load_with_cuda=device.type == "cuda",
+                    )
+                ).to(device)
+
+    @staticmethod
+    def _load_converted_pose_correctives(
+        rig_path: Path,
+        lod_path: Path,
+        wants_pose_correctives: bool,
+        device: torch.device,
+    ) -> MHRPoseCorrectivesModel | None:
+        if not wants_pose_correctives:
+            return None
+        with (
+            np.load(rig_path, allow_pickle=False) as rig_data,
+            np.load(lod_path, allow_pickle=False) as lod_data,
+        ):
+            if not has_pose_corrective_blendshapes(lod_data):
+                return None
+            return MHRPoseCorrectivesModel(
+                load_pose_dirs_predictor(
+                    lod_data,
+                    rig_data,
+                    load_with_cuda=device.type == "cuda",
+                )
+            ).to(device)
 
     @staticmethod
     def _create_model(
-        character: pym_geometry.Character,
+        character: Any,
         blendshapes_path: str,
         corrective_activation_path: str | None,
         device: torch.device,
     ) -> "MHR":
         """Create MHR model from the given character and asset paths."""
 
-        blendshapes_data = np.load(blendshapes_path)
-
-        # Pose correctives model
-        pose_correctives_model = None
-        has_pose_correctives = (
-            has_pose_corrective_blendshapes(blendshapes_data)
-            and corrective_activation_path is not None
+        pose_correctives_model = MHR._load_pose_correctives(
+            blendshapes_path, corrective_activation_path, device
         )
-        if has_pose_correctives:
-            corrective_activation_data = np.load(corrective_activation_path)
-            pose_correctives_model = MHRPoseCorrectivesModel(
-                load_pose_dirs_predictor(
-                    blendshapes_data,
-                    corrective_activation_data,
-                    load_with_cuda=device.type == "cuda",
-                )
-            )
-
-        if pose_correctives_model is not None:
-            pose_correctives_model.to(device)
-
-        return MHR(character, pose_correctives_model, device=device)
+        return MHR(character, pose_correctives_model, device)
 
     @staticmethod
     def from_files(
         folder: Path = get_default_asset_folder(),
-        device: torch.device = "cuda",
+        device: torch.device | str = "cuda",
         lod: LOD = 1,
         wants_pose_correctives: bool = True,
     ) -> "MHR":
         """Load character and model parameterization, and create full model."""
 
-        # Create character by fetching rig and model parameterization paths
+        folder = Path(folder)
+        device = torch.device(device)
+        rig_path = Path(get_mhr_rig_path(folder))
+        lod_path = Path(get_mhr_lod_path(folder, lod))
+        blendshapes_path = get_mhr_blendshapes_path(folder, lod)
+        corrective_activation_path = (
+            get_corrective_activation_path(folder) if wants_pose_correctives else None
+        )
+
+        if rig_path.exists() or lod_path.exists():
+            if not rig_path.exists() or not lod_path.exists():
+                raise FileNotFoundError(
+                    f"converted MHR assets are incomplete: expected {rig_path} and "
+                    f"{lod_path}"
+                )
+            character_torch, character_view = TorchCharacter.from_files(
+                rig_path, lod_path, lod
+            )
+            if character_torch.blend_shape.shape_vectors.shape[0] != (
+                NUM_IDENTITY_BLENDSHAPES + NUM_FACE_EXPRESSION_BLENDSHAPES
+            ):
+                raise ValueError(
+                    "converted assets have an unexpected number of blend shapes"
+                )
+            return MHR._from_converted_assets(
+                character_torch,
+                character_view,
+                MHR._load_converted_pose_correctives(
+                    rig_path, lod_path, wants_pose_correctives, device
+                ),
+                device,
+            )
+
+        try:
+            import pymomentum.geometry as pym_geometry
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(_LEGACY_DEPENDENCY_ERROR) from exc
+
+        # Legacy FBX/model loading path, retained for one transition release.
         fbx_path = get_mhr_fbx_path(folder, lod)
         model_path = get_mhr_model_path(folder)
         assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
@@ -163,11 +280,6 @@ class MHR(torch.nn.Module):
         # Set parameter sets for identity / facial expressions
         set_blendshape_parameter_sets(character)
 
-        # Retrieve correctives paths and create full model
-        blendshapes_path = get_mhr_blendshapes_path(folder, lod)
-        corrective_activation_path = (
-            get_corrective_activation_path(folder) if wants_pose_correctives else None
-        )
         assert os.path.exists(
             blendshapes_path
         ), f"Blendshapes file not found at {blendshapes_path}"
@@ -263,7 +375,7 @@ class MHR(torch.nn.Module):
         return verts, skel_state
 
 
-def set_blendshape_parameter_sets(character: pym_geometry.Character) -> None:
+def set_blendshape_parameter_sets(character: Any) -> None:
     """Utility function to discriminate between identity/facial expression blendshape parameters of a character."""
 
     # Check number of blendshapes is as expected

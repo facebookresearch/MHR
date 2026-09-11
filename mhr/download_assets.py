@@ -15,8 +15,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import shutil
+import sys
 import tempfile
 import time
 import urllib.error
@@ -26,9 +29,13 @@ import zipfile
 from pathlib import Path
 from typing import Iterable
 
+from ._torch_rig import RIG_SCHEMA_VERSION
+from .io import get_default_asset_folder
+
 DEFAULT_REPO = "facebookresearch/MHR"
 DEFAULT_RELEASE = "latest"
 DEFAULT_ARCHIVE = "assets.zip"
+DEFAULT_MANIFEST = f"mhr-assets-v{RIG_SCHEMA_VERSION}.json"
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -71,6 +78,14 @@ def _validate_zip(path: Path) -> None:
         raise RuntimeError(f"{path} is corrupt at {first_bad_file}")
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(CHUNK_SIZE):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _safe_members(zf: zipfile.ZipFile, dest: Path) -> Iterable[zipfile.ZipInfo]:
     root = dest.resolve()
     for member in zf.infolist():
@@ -105,9 +120,18 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _lod(value: str) -> int:
+    parsed = int(value)
+    if parsed not in range(7):
+        raise argparse.ArgumentTypeError("must be between 0 and 6")
+    return parsed
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download MHR release assets.")
-    parser.add_argument("--repo", default=os.environ.get("MHR_ASSETS_REPO", DEFAULT_REPO))
+    parser.add_argument(
+        "--repo", default=os.environ.get("MHR_ASSETS_REPO", DEFAULT_REPO)
+    )
     parser.add_argument(
         "--release", default=os.environ.get("MHR_ASSETS_RELEASE", DEFAULT_RELEASE)
     )
@@ -117,8 +141,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dest",
         type=Path,
-        default=Path(os.environ.get("MHR_ASSETS_DEST", ".")),
+        default=Path(os.environ.get("MHR_ASSETS_DEST", get_default_asset_folder())),
         help="Directory for the downloaded archive and extracted files.",
+    )
+    converted = parser.add_mutually_exclusive_group()
+    converted.add_argument(
+        "--lod",
+        action="append",
+        type=_lod,
+        help="Download the converted common bundle and one LOD (repeatable).",
+    )
+    converted.add_argument(
+        "--all-lods",
+        action="store_true",
+        help="Download the converted common bundle and every LOD.",
+    )
+    parser.add_argument(
+        "--manifest",
+        default=os.environ.get("MHR_ASSETS_MANIFEST", DEFAULT_MANIFEST),
+        help="Converted asset manifest filename.",
     )
     parser.add_argument(
         "--member",
@@ -142,10 +183,98 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _download_archive(
+    *,
+    repo: str,
+    release: str,
+    filename: str,
+    dest: Path,
+    retries: int,
+    expected_sha256: str | None = None,
+    extract: bool = True,
+) -> Path:
+    if Path(filename).name != filename:
+        raise RuntimeError(f"invalid asset filename: {filename}")
+    archive_path = dest / filename
+    url = _asset_url(repo, release, filename)
+    with tempfile.NamedTemporaryFile(
+        prefix=f"{filename}.", suffix=".tmp", dir=dest, delete=False
+    ) as temporary:
+        temporary_path = Path(temporary.name)
+
+    try:
+        print(f"Downloading {url}")
+        _download(url, temporary_path, retries)
+        if expected_sha256 is not None and _sha256(temporary_path) != expected_sha256:
+            raise RuntimeError(f"checksum mismatch for {filename}")
+        _validate_zip(temporary_path)
+        temporary_path.replace(archive_path)
+        print(f"Saved {archive_path}")
+        if extract:
+            _extract(archive_path, dest, None, None)
+            print(f"Extracted {archive_path}")
+        return archive_path
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def _download_converted_assets(args: argparse.Namespace) -> None:
+    if Path(args.manifest).name != args.manifest:
+        raise RuntimeError(f"invalid manifest filename: {args.manifest}")
+    manifest_path = args.dest / args.manifest
+    manifest_url = _asset_url(args.repo, args.release, args.manifest)
+    with tempfile.NamedTemporaryFile(
+        prefix=f"{args.manifest}.", suffix=".tmp", dir=args.dest, delete=False
+    ) as temporary:
+        temporary_path = Path(temporary.name)
+    try:
+        print(f"Downloading {manifest_url}")
+        _download(manifest_url, temporary_path, args.retries)
+        manifest = json.loads(temporary_path.read_text())
+        if manifest.get("schema_version") != RIG_SCHEMA_VERSION:
+            raise RuntimeError("unsupported MHR asset manifest schema")
+        temporary_path.replace(manifest_path)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+    lods = range(7) if args.all_lods else sorted(set(args.lod))
+    entries = [manifest["common"]] + [manifest["lods"][str(lod)] for lod in lods]
+    for entry in entries:
+        filename = entry.get("filename")
+        checksum = entry.get("sha256")
+        if not isinstance(filename, str) or not isinstance(checksum, str):
+            raise RuntimeError("invalid MHR asset manifest entry")
+        _download_archive(
+            repo=args.repo,
+            release=args.release,
+            filename=filename,
+            dest=args.dest,
+            retries=args.retries,
+            expected_sha256=checksum,
+            extract=not args.no_extract,
+        )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     args.dest.mkdir(parents=True, exist_ok=True)
 
+    if args.lod is not None or args.all_lods:
+        if args.member is not None or args.output is not None:
+            raise SystemExit("--member/--output cannot be used with converted assets")
+        try:
+            _download_converted_assets(args)
+        except Exception as exc:
+            raise SystemExit(str(exc)) from exc
+        return
+
+    print(
+        "No --lod was selected; downloading the legacy all-assets archive. ",
+        "Use --lod N for the smaller converted runtime assets.",
+        file=sys.stderr,
+    )
     archive_path = args.dest / args.archive
     url = _asset_url(args.repo, args.release, args.archive)
 
