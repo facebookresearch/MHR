@@ -38,24 +38,52 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 
 ```bash
 # On top of MHR
-pixi add --pypi trimesh scikit-learn tqdm smplx
+pixi add scikit-learn tqdm
+pixi add --pypi smplx==0.1.28
 ```
 
 ### SMPL/SMPLX Model Files
 
 You'll need the official SMPL/SMPLX model files:
 
-1. **SMPL**: Download from [SMPL website](https://smpl.is.tue.mpg.de/)
-2. **SMPLX**: Download from [SMPLX website](https://smpl-x.is.tue.mpg.de/)
+1. **SMPL**: Download the `.npz` model (listed as **SMPL for Julia**) from the
+   [SMPL website](https://smpl.is.tue.mpg.de/). The standard neutral, male,
+   and female models with 6890 vertices are supported.
+2. **SMPL-X**: Download the official `.npz` model from the
+   [SMPL-X website](https://smpl-x.is.tue.mpg.de/).
 
-**Note**: If you run into issues with the `.pkl` SMPL(X) model file, try the official `.npz` files instead.
+The SMPL loader accepts the official `.npz` file directly and normalizes common
+2D `posedirs` and `shapedirs` layouts, including `posedirs` shaped
+`(207, 20670)`. It also accepts Chumpy-free `.pkl` files.
+Legacy **SMPL for Python** `.pkl` files contain Chumpy objects and are not
+compatible with the supported Python 3.12/3.13 environments; use the `.npz`
+download instead. Third-party models are supported only when they use the
+standard SMPL topology and data schema.
+
+The same loader is available programmatically:
+
+```python
+from mhr.smpl import load_smpl_model
+
+smpl_model = load_smpl_model("path/to/smpl/model.npz")
+```
+
+The checked-in Pixi project currently targets Linux and macOS. The packaged
+`mhr` library includes the loader above, but the full conversion tool and its
+optional `smplx` dependency are not installed by the PyPI or conda-forge
+packages. For native Windows use, run the conversion tool from an MHR source
+checkout and install `smplx` from PyPI in that environment.
 
 ## Quick Start
 
 ### Run Examples
 
 ```bash
-pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -o output_dir
+cd tools/mhr_smpl_conversion
+pixi run python example.py \
+  --smpl path/to/smpl/model.npz \
+  --smplx path/to/smplx/model.npz \
+  -o output_dir
 ```
 Three conversions will be conducted and the results will be exported in three folders under the output_dir. The results folders are named as {source_model}\_{input_format}2{target_model}\_{method}(_{if_single_identity_sequence}):
 
