@@ -86,16 +86,27 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _safe_members(zf: zipfile.ZipFile, dest: Path) -> Iterable[zipfile.ZipInfo]:
+def _safe_target(dest: Path, filename: str) -> Path:
     root = dest.resolve()
+    target = (dest / filename).resolve()
+    if target != root and root not in target.parents:
+        raise RuntimeError(f"archive member escapes destination: {filename}")
+    return target
+
+
+def _safe_members(zf: zipfile.ZipFile, dest: Path) -> Iterable[zipfile.ZipInfo]:
     for member in zf.infolist():
-        target = (dest / member.filename).resolve()
-        if target != root and root not in target.parents:
-            raise RuntimeError(f"archive member escapes destination: {member.filename}")
+        _safe_target(dest, member.filename)
         yield member
 
 
-def _extract(path: Path, dest: Path, member: str | None, output: Path | None) -> None:
+def _extract(
+    path: Path,
+    dest: Path,
+    member: str | None,
+    output: Path | None,
+    strip_prefix: str | None = None,
+) -> None:
     with zipfile.ZipFile(path) as zf:
         if member is not None:
             try:
@@ -107,6 +118,25 @@ def _extract(path: Path, dest: Path, member: str | None, output: Path | None) ->
             target.parent.mkdir(parents=True, exist_ok=True)
             with source, target.open("wb") as f:
                 shutil.copyfileobj(source, f)
+            return
+
+        if strip_prefix is not None:
+            prefix = f"{strip_prefix.rstrip('/')}/"
+            for archive_member in zf.infolist():
+                if archive_member.filename.rstrip("/") == strip_prefix.rstrip("/"):
+                    continue
+                if not archive_member.filename.startswith(prefix):
+                    raise RuntimeError(
+                        f"archive member is outside {strip_prefix}: "
+                        f"{archive_member.filename}"
+                    )
+                target = _safe_target(dest, archive_member.filename[len(prefix) :])
+                if archive_member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(archive_member) as source, target.open("wb") as f:
+                    shutil.copyfileobj(source, f)
             return
 
         for archive_member in _safe_members(zf, dest):
@@ -291,7 +321,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Saved {archive_path}")
 
         if not args.no_extract:
-            _extract(archive_path, args.dest, args.member, args.output)
+            _extract(
+                archive_path,
+                args.dest,
+                args.member,
+                args.output,
+                strip_prefix="assets",
+            )
             print(f"Extracted {archive_path}")
     except Exception as exc:
         tmp_path.unlink(missing_ok=True)

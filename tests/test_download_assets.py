@@ -106,6 +106,26 @@ def test_download_rejects_bad_checksum(monkeypatch, tmp_path: Path) -> None:
     assert not (destination / common.name).exists()
 
 
+def test_download_legacy_archive_strips_assets_directory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    source.mkdir()
+    archive = source / "assets.zip"
+    _archive(archive, "assets/compact_v6_1.model", b"model")
+
+    def copy_download(url: str, output: Path, retries: int) -> None:
+        del url, retries
+        shutil.copyfile(archive, output)
+
+    monkeypatch.setattr(download_assets, "_download", copy_download)
+    download_assets.main(["--dest", str(destination)])
+
+    assert (destination / "compact_v6_1.model").read_bytes() == b"model"
+    assert not (destination / "assets").exists()
+
+
 def test_installed_default_uses_user_cache(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.delenv("MHR_ASSETS_DIR", raising=False)
     monkeypatch.delenv("MHR_ASSETS_DEST", raising=False)
