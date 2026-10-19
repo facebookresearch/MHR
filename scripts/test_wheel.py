@@ -15,7 +15,6 @@
 
 """Test built wheel in a fresh virtual environment using uv."""
 
-import os
 import subprocess
 import sys
 import tempfile
@@ -50,7 +49,13 @@ def test_wheel(wheel_path):
         # Create virtual environment
         print("Creating fresh virtual environment with uv...")
         subprocess.run(
-            ["uv", "venv", str(venv_dir)],
+            [
+                "uv",
+                "venv",
+                "--python",
+                sys.executable,
+                str(venv_dir),
+            ],
             check=True,
             cwd=tmpdir,
         )
@@ -58,22 +63,47 @@ def test_wheel(wheel_path):
         # Python executable path (Unix/Linux/macOS)
         python_exe = venv_dir / "bin" / "python"
 
-        # Install wheel
+        # Install a CPU-only Torch first so Linux does not pull CUDA runtimes
+        # from PyPI merely to test this platform-neutral wheel.
+        torch_install = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python_exe),
+            "torch",
+        ]
+        if sys.platform != "darwin":
+            torch_install.extend(
+                ["--index-url", "https://download.pytorch.org/whl/cpu"]
+            )
+        subprocess.run(torch_install, check=True, cwd=tmpdir)
+
+        # Install wheel and its remaining dependencies.
         print(f"Installing wheel in virtual environment...")
         subprocess.run(
-            ["uv", "pip", "install", str(wheel_path)],
+            ["uv", "pip", "install", "--python", str(python_exe), str(wheel_path)],
             check=True,
             cwd=tmpdir,
-            env={**os.environ, "VIRTUAL_ENV": str(venv_dir)},
         )
-
+        subprocess.run(
+            ["uv", "pip", "check", "--python", str(python_exe)],
+            check=True,
+            cwd=tmpdir,
+        )
         # Test import
         print("Testing import...")
         result = subprocess.run(
             [
                 str(python_exe),
                 "-c",
-                "import mhr; print(f'Successfully imported mhr version {mhr.__version__}')",
+                "import importlib.metadata, importlib.util; "
+                "requirements = importlib.metadata.requires('mhr') or []; "
+                "assert any(r == 'numpy' for r in requirements); "
+                "assert any(r == 'torch' for r in requirements); "
+                "assert importlib.util.find_spec('pymomentum') is None; "
+                "from mhr.mhr import MHR; "
+                "print(f'Successfully imported {MHR.__name__} without PyMomentum')",
             ],
             check=True,
             capture_output=True,

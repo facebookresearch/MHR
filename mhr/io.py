@@ -13,6 +13,9 @@
 # limitations under the License.
 
 
+import os
+import sys
+
 from pathlib import Path
 from typing import Dict
 
@@ -29,7 +32,20 @@ POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 def get_default_asset_folder() -> Path:
     """Return the path to the default MHR asset folder."""
 
-    return Path(__file__).parent.parent / "assets"
+    configured = os.environ.get("MHR_ASSETS_DIR") or os.environ.get("MHR_ASSETS_DEST")
+    if configured:
+        return Path(configured).expanduser()
+
+    project_root = Path(__file__).parent.parent
+    if (project_root / "pyproject.toml").is_file():
+        return project_root / "assets"
+    if os.name == "nt":
+        cache_root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
+    elif sys.platform == "darwin":
+        cache_root = Path.home() / "Library/Caches"
+    else:
+        cache_root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    return cache_root / "mhr" / "assets"
 
 
 def get_mhr_fbx_path(folder: Path, lod: int) -> str:
@@ -37,6 +53,18 @@ def get_mhr_fbx_path(folder: Path, lod: int) -> str:
 
     asset_path = folder / f"lod{lod}.fbx"
     return str(asset_path)
+
+
+def get_mhr_rig_path(folder: Path) -> str:
+    """Return the path to the converted shared rig data."""
+
+    return str(folder / "rig.npz")
+
+
+def get_mhr_lod_path(folder: Path, lod: int) -> str:
+    """Return the path to the converted mesh and skinning data for an LOD."""
+
+    return str(folder / f"lod{lod}.npz")
 
 
 def get_mhr_model_path(folder: Path) -> str:
