@@ -16,7 +16,7 @@ MHR (Momentum Human Rig) is a high-fidelity 3D human body model that provides:
 - **Multiple LOD Levels**: 7 levels of detail (LOD 0-6) for different performance requirements
 - **Non-linear Pose Correctives**: Neural network-based pose-dependent deformations
 - **PyTorch Integration**: Differentiable inference and optimization on CPU or GPU
-- **[PyMomentum](https://facebookresearch.github.io/momentum/) Integration**: Compatible with fast CPU solver
+- **Optional [PyMomentum](https://facebookresearch.github.io/momentum/) integration**: Legacy FBX loading and conversion tools remain available
 
 ## Installation
 
@@ -32,52 +32,32 @@ cd MHR
 # Install dependencies with Pixi
 pixi install
 
-# Download and unzip the model assets
-pixi run download-assets
+# Download the converted LOD 1 assets
+pixi run download-assets --lod 1
 
 # Activate the environment
 pixi shell
 ```
 
-### Option 2. Using the TorchScript model
+### Option 2. Using pip
 
 ```bash
-# Install MHR
 pip install mhr
-
-# Download the torchscript model
-mhr-download-assets --member assets/mhr_model.pt --output mhr_model.pt
-
-# Start using the torchscript model
-```
-New to TorchScript model? In short it's a Graph mode of pytorch models. More details [here](https://docs.pytorch.org/tutorials/intermediate/torch_compile_tutorial.html#id3). You can take ./demo.py as a reference to start using the torchscript model.
-
-- Advantage: no codebase or model assets are required.
-- Disadvantage: Currently only support for LOD 1; limited access to model properties.
-
-### Option 3. Using pip (⚠️ Experimental)
-
-> **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
-
-```bash
-# Install PyMomentum (CPU or GPU)
-pip install pymomentum-cpu  # or pymomentum-gpu
-
-# Install MHR
-pip install mhr
-
-# Download and unzip the model assets
-mhr-download-assets
+mhr-download-assets --lod 1
 ```
 
-
+MHR's normal runtime does not require PyMomentum. To load the legacy FBX assets
+during the transition release, install `pymomentum-cpu` (or the matching
+`pymomentum-gpu`) separately and run `mhr-download-assets` without `--lod`.
 
 ### Dependencies
 
 - Python >= 3.11
+- NumPy
 - PyTorch
-- pymomentum >= 0.1.90
-- trimesh >= 4.8.3 (for additional tools only: mhr-smpl conversion, LOD conversion and segmentation)
+
+PyMomentum and Trimesh are optional tooling dependencies used only by legacy
+asset loading, demos, and conversion tools.
 
 ## Quick Start
 
@@ -87,7 +67,12 @@ mhr-download-assets
 python demo.py
 ```
 
-This will generate a test MHR mesh and compare outputs with the TorchScript model.
+The legacy comparison demo has additional dependencies:
+
+```bash
+pixi run -e legacy-py312 download-assets
+pixi run -e legacy-py312 demo
+```
 
 ### Visualization Demo
 
@@ -117,6 +102,7 @@ face_expr_coeffs = 0.3 * torch.randn(batch_size, 72)     # Facial expression
 
 # Generate mesh vertices and skeleton information (joint orientation and positions).
 vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
+faces = mhr_model.faces
 ```
 
 ### Computing gradients
@@ -164,12 +150,9 @@ inference only.
 
 ```
 MHR/
-├── assets                              # Assets (downloaded and unzipped from release)
-│   ├── compact_v6_1.model              # Model parameterization
-│   ├── corrective_activation.npz       # Pose corrective MLP sparse activations
-│   ├── corrective_blendshapes_lod?.npz # Pose corrective blendshapes
-│   ├── lod?.fbx                        # Rig with identity and expression blendshapes
-│   └── mhr_model.pt                    # Torchscript model
+├── assets                              # Assets downloaded from a release
+│   ├── rig.npz                         # Shared skeleton and parameter data
+│   └── lod?.npz                        # Per-LOD mesh, skinning, and correctives
 ├── demo.py                             # Basic demo script
 ├── mhr                                 # Main package
 │   ├── io.py                           # Asset loading utilities
