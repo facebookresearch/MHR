@@ -19,26 +19,35 @@ import trimesh
 
 torch.manual_seed(0)
 
+
 def _prepare_input_data(batch_size: int) -> torch.Tensor:
     identity_coeffs = 0.8 * torch.randn(batch_size, 45).cpu()
     model_parameters = 0.2 * (torch.rand(batch_size, 204) - 0.5).cpu()
     face_expr_coeffs = 0.3 * torch.randn(batch_size, 72).cpu()
     return identity_coeffs, model_parameters, face_expr_coeffs
 
+
 def run():
     mhr_model = MHR.from_files(device=torch.device("cpu"), lod=1)
     batch_size = 2
-    identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(batch_size)
+    identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(
+        batch_size
+    )
 
     # This demo performs inference only. For optimization, enable gradients on
     # the desired inputs before this call and do not use torch.no_grad().
     with torch.no_grad():
-        verts, skel_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
+        verts, skel_state = mhr_model(
+            identity_coeffs, model_parameters, face_expr_coeffs
+        )
 
-    mesh = trimesh.Trimesh(vertices=verts[0].numpy(), faces=mhr_model.character.mesh.faces, process=False)
+    mesh = trimesh.Trimesh(
+        vertices=verts[0].numpy(), faces=mhr_model.faces.cpu().numpy(), process=False
+    )
     output_mesh_path = "./test.ply"
     mesh.export(output_mesh_path)
     print(f"Saved example MHR mesh to {output_mesh_path}")
+
 
 def compare_with_torchscript_model():
     print("Comparing MHR model with TorchScripted model.")
@@ -46,14 +55,19 @@ def compare_with_torchscript_model():
     mhr_model = MHR.from_files(device=torch.device("cpu"), lod=1)
 
     batch_size = 128
-    identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(batch_size)
+    identity_coeffs, model_parameters, face_expr_coeffs = _prepare_input_data(
+        batch_size
+    )
 
     # Model comparison does not need an autograd graph.
     with torch.no_grad():
         verts, _ = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
-        verts_ts, _ = scripted_model(identity_coeffs, model_parameters, face_expr_coeffs)
+        verts_ts, _ = scripted_model(
+            identity_coeffs, model_parameters, face_expr_coeffs
+        )
         print(f"Averge per-vertex offsets {torch.abs(verts - verts_ts).mean()} cm.")
         print(f"Max per-vertex offsets {torch.abs(verts - verts_ts).max()} cm.")
+
 
 if __name__ == "__main__":
     run()
