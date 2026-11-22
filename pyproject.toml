@@ -2,10 +2,19 @@
 authors = [{name = "MHR Contributors"}]
 dependencies = ["numpy", "torch"]
 name = "mhr"
-requires-python = ">= 3.11"
+# mhr.MHR needs PyMomentum, which has no Python 3.11 build on PyPI and none on
+# conda-forge before 0.1.114 (MHR supports PyMomentum >= 0.1.89).
+requires-python = ">= 3.12"
 dynamic = ["version"]
 readme = "README.md"
 license = {text = "Apache-2.0"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
@@ -66,7 +75,11 @@ python = "3.12.*"
 [tool.pixi.feature.py313.dependencies]
 python = "3.13.*"
 
+[tool.pixi.feature.py314.dependencies]
+python = "3.14.*"
+
 [tool.pixi.environments]
 default = ["py312"]
 py312 = ["py312"]
 py313 = ["py313"]
+py314 = ["py314"]
