@@ -55,6 +55,8 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 - Advantage: no codebase or model assets are required.
 - Disadvantage: Currently only support for LOD 1; limited access to model properties.
 
+> **Python 3.14:** loading the TorchScript model works there with PyTorch 2.14 and gives the same output as on Python 3.12, but PyTorch marks TorchScript as not guaranteed to work on Python 3.14 ([PyTorch 2.10 release notes](https://github.com/pytorch/pytorch/releases/tag/v2.10.0)). On Python 3.14, prefer `MHR.from_files` (Option 1).
+
 ### Option 3. Using pip (⚠️ Experimental)
 
 > **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
