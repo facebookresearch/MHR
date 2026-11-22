@@ -19,6 +19,9 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
+# For mhr.mhr and the tools. The floor matches the import-time check in
+# mhr/_pymomentum_version.py, which also guards conda installs.
+momentum = ["pymomentum-core>=0.1.89"]
 
 [project.urls]
 Homepage = "https://github.com/facebookresearch/MHR"
