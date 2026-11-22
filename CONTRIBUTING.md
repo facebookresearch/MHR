@@ -12,6 +12,22 @@ We actively welcome your pull requests.
 5. Make sure your code lints.
 6. If you haven't already, complete the Contributor License Agreement ("CLA").
 
+## Converting the release assets
+
+`scripts/convert_assets.py` converts the FBX and NPZ release assets into the
+portable tensor format described in `mhr/_rig_schema.py`, and writes the
+per-LOD release bundles and their manifest. Run it in the Pixi environment,
+which includes PyMomentum:
+
+```bash
+pixi run download-assets
+pixi run python scripts/convert_assets.py --assets assets --output dist/assets
+```
+
+Running it twice in the same environment gives byte-identical output. The
+bytes can change with the PyMomentum version, which the script records in
+`rig.npz`, and with the NumPy, Python and zlib versions that write the files.
+
 ## Contributor License Agreement ("CLA")
 In order to accept your pull request, we need you to submit a CLA. You only need
 to do this once to work on any of Facebook's open source projects.

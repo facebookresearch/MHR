@@ -206,8 +206,8 @@ MHR/
 Run the test suite:
 
 ```bash
-# Run all tests
-pixi run pytest tests/
+# Run all tests: tests/ tests the mhr package, scripts/tests/ the maintainer scripts
+pixi run test
 
 # Run specific test
 pixi run pytest tests/test_mhr.py
