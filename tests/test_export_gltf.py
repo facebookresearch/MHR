@@ -25,6 +25,8 @@ import torch
 pym_geometry = pytest.importorskip("pymomentum.geometry")
 torch_character = pytest.importorskip("pymomentum.torch.character")
 
+from tests.pymomentum_compat import create_test_character
+
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1] / "tools" / "mhr_export" / "export_gltf.py"
 )
@@ -41,7 +43,7 @@ def _character_with_blend_shapes() -> pym_geometry.Character:
     """Synthetic test character with identity and face blendshapes appended
     to its model parameters, like ``export_gltf.load_character`` returns."""
 
-    character = pym_geometry.create_test_character()
+    character = create_test_character()
     rng = np.random.default_rng(0)
     n_verts = character.mesh.n_vertices
     # The mesh is the blendshape base, as in the MHR assets.

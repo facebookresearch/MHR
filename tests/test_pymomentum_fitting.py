@@ -45,11 +45,13 @@ _NUM_VERTICES = 40
 _PARTS = ["spine", "neck", "head", "clavicle", "knee", "index", "thumb", "scale_leg"]
 
 
-def _fake_character() -> SimpleNamespace:
+def _fake_character(numpy_parameter_transform: bool = False) -> SimpleNamespace:
     """A stand-in for the MHR character with the attributes the stage setup reads.
 
     It has the MHR parameter layout (204 rig parameters, 45 identity and 72
-    face expression blendshapes) on a small skeleton and mesh.
+    face expression blendshapes) on a small skeleton and mesh. Recent
+    PyMomentum releases return the parameter transform as NumPy arrays, older
+    ones as torch tensors; numpy_parameter_transform selects the former.
     """
 
     rng = np.random.default_rng(0)
@@ -62,6 +64,8 @@ def _fake_character() -> SimpleNamespace:
         transform[rng.integers(_NUM_JOINTS * 7), i] = 1.0
     rigid = torch.zeros(len(names), dtype=torch.bool)
     rigid[:6] = True
+    if numpy_parameter_transform:
+        transform, rigid = transform.numpy(), rigid.numpy()
 
     index = rng.integers(1, _NUM_JOINTS, size=(_NUM_VERTICES, 2))
     weight = np.full((_NUM_VERTICES, 2), 0.5)
@@ -74,12 +78,12 @@ def _fake_character() -> SimpleNamespace:
     )
 
 
-def _fitter(recorded: list):
+def _fitter(recorded: list, numpy_parameter_transform: bool = False):
     """A fitter on the fake character whose solver records each stage's active
     parameters instead of solving."""
 
     fitter = object.__new__(pymomentum_fitting.PyMomentumModelFitting)
-    character = _fake_character()
+    character = _fake_character(numpy_parameter_transform)
     num_parameters = len(character.parameter_transform.names)
     fitter._mhr_model = SimpleNamespace(character=character)
     fitter._bs_character = character
@@ -177,3 +181,13 @@ def test_fit_leaves_stage_masks_unchanged():
     assert fitter._create_hierarchical_masks(exclude_expression=False) is stages
     for stage, mask_before in zip(stages, before):
         assert torch.equal(stage.active_parameter_mask, mask_before), stage.info
+
+
+def test_numpy_parameter_transform_gives_the_same_stages():
+    torch_stages, numpy_stages = [], []
+    _fitter(torch_stages).fit(_TARGET)
+    _fitter(numpy_stages, numpy_parameter_transform=True).fit(_TARGET)
+
+    assert [info for info, _ in numpy_stages] == [info for info, _ in torch_stages]
+    for (info, numpy_mask), (_, torch_mask) in zip(numpy_stages, torch_stages):
+        assert torch.equal(numpy_mask, torch_mask), info

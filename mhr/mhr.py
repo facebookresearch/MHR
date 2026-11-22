@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+
+from ._pymomentum_version import check_pymomentum_version
+
+check_pymomentum_version()
+
 import pymomentum.geometry as pym_geometry
 
 import pymomentum.torch.character as torch_character

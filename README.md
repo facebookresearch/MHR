@@ -60,8 +60,8 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 > **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
 
 ```bash
-# Install PyMomentum (CPU or GPU)
-pip install pymomentum-cpu  # or pymomentum-gpu
+# Install PyMomentum, which works with any recent PyTorch
+pip install pymomentum-core
 
 # Install MHR
 pip install mhr
@@ -70,13 +70,19 @@ pip install mhr
 mhr-download-assets
 ```
 
+> **Known issue on Linux:** the PyPI builds of PyMomentum ship a private copy of `libstdc++`. Depending on which PyTorch build loads the system copy first, the two copies can mix, and then `MHR.from_files` crashes with a segmentation fault ([#44](https://github.com/facebookresearch/MHR/issues/44)). No PyMomentum release on PyPI fixes this yet. It happens with `pymomentum-cpu`, which requires PyTorch 2.8, and with the CPU-only PyTorch wheels from download.pytorch.org (seen on CentOS Stream 9); `pymomentum-core` with the default PyTorch from PyPI did not crash in our tests. If you hit the crash, use the Pixi environment or conda-forge `pymomentum`, or start Python with PyMomentum's copy preloaded:
+>
+> ```bash
+> LD_PRELOAD=$(python -c "import glob, sysconfig; print(glob.glob(sysconfig.get_paths()['purelib'] + '/pymomentum_*.libs/libstdc++*.so*')[0])") python demo.py
+> ```
+
 
 
 ### Dependencies
 
 - Python >= 3.11
 - PyTorch
-- pymomentum >= 0.1.90
+- pymomentum >= 0.1.89 (CI tests 0.1.114)
 - trimesh >= 4.8.3 (for additional tools only: mhr-smpl conversion, LOD conversion and segmentation)
 
 ## Quick Start
