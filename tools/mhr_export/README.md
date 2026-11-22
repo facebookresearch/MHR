@@ -6,10 +6,11 @@ glTF viewers can open.
 ## Installation
 
 The tool needs [PyMomentum](https://facebookresearch.github.io/momentum/). The
-repository's pixi environment includes it; with pip, install it on top of MHR:
+repository's pixi environment includes it; with pip, install the version the
+tests run with on top of MHR:
 
 ```bash
-pip install pymomentum-cpu  # or pymomentum-gpu
+pip install "pymomentum-cpu==0.1.90.*"
 ```
 
 Download the MHR assets first (see the main README).
@@ -88,4 +89,23 @@ for obj in bpy.context.selected_objects:
     if obj.type == "MESH" and obj.data.shape_keys:
         for key in obj.data.shape_keys.key_blocks:
             key.slider_min, key.slider_max = -10.0, 10.0
+```
+
+Blender places glTF keyframes by time, so set the scene frame rate
+(**Output Properties > Frame Rate**) to the export's `--fps` before the import;
+each exported frame then lands on a whole Blender frame. The import leaves the
+scene's frame range at Blender's default (1-250), which starts after the first
+exported frame (frame 0) and holds the last pose long after the animation
+ends. Set the range to the animation's frames after the import:
+
+```python
+import math
+
+import bpy
+
+scene = bpy.context.scene
+for obj in bpy.context.selected_objects:
+    if obj.type == "ARMATURE" and obj.animation_data and obj.animation_data.action:
+        start, end = obj.animation_data.action.frame_range
+        scene.frame_start, scene.frame_end = math.floor(start), math.ceil(end)
 ```
