@@ -100,6 +100,10 @@ This will generate a test MHR mesh and compare outputs with the TorchScript mode
 
 Conversion between MHR and SMPL/SMPL-X. See [`tools/mhr_smpl_conversion/README.md`](tools/mhr_smpl_conversion/README.md).
 
+### glTF Export
+
+Export MHR poses and animations to glTF (`.glb`) for Blender and other tools. See [`tools/mhr_export/README.md`](tools/mhr_export/README.md).
+
 ### Basic Usage
 
 ```python
@@ -178,6 +182,7 @@ MHR/
 ├── pyproject.toml                      # Pixi project configuration
 ├── tests                               # Unit tests
 └── tools                               # Additional tools
+    ├── mhr_export                      # glTF export
     ├── mhr_visualization               # Jupyter visualization
     └── mhr_smpl_conversion             # Conversion between MHR and SMPL/SMPL-X
 ```
