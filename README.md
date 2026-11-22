@@ -89,6 +89,8 @@ python demo.py
 
 This will generate a test MHR mesh and compare outputs with the TorchScript model.
 
+The demo saves the mesh with trimesh. The Pixi environment includes it; with a pip install, run `pip install "trimesh>=4.8.3,<5"` first.
+
 ### Visualization Demo
 
 ![Visualization Notebook](images/visualization_notebook.png?raw=true)
