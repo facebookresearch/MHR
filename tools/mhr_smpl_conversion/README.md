@@ -38,24 +38,48 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 
 ```bash
 # On top of MHR
-pixi add --pypi trimesh scikit-learn tqdm smplx
+pixi add pymomentum scikit-learn tqdm "trimesh>=4.8.3,<5"
+pixi add --pypi smplx==0.1.28
 ```
+
+The conversion tool runs from an MHR source checkout. It is not part of the
+`mhr` PyPI or conda-forge packages.
 
 ### SMPL/SMPLX Model Files
 
 You'll need the official SMPL/SMPLX model files:
 
-1. **SMPL**: Download from [SMPL website](https://smpl.is.tue.mpg.de/)
-2. **SMPLX**: Download from [SMPLX website](https://smpl-x.is.tue.mpg.de/)
+1. **SMPL**: Download from the [SMPL website](https://smpl.is.tue.mpg.de/).
+   Models with the standard 6890-vertex SMPL mesh are supported.
+2. **SMPL-X**: Download the `.npz` model from the
+   [SMPL-X website](https://smpl-x.is.tue.mpg.de/).
 
-**Note**: If you run into issues with the `.pkl` SMPL(X) model file, try the official `.npz` files instead.
+`example.py` loads the SMPL model with `smpl_model.load_smpl_model`, which
+accepts:
+
+- `.npz` files with `posedirs` and `shapedirs` shaped `(6890, 3, components)`.
+- `.npz` files with these arrays flattened to `(components, 20670)` or
+  `(20670, components)`. The 20670 values can be ordered vertex by vertex
+  (`x0, y0, z0, x1, ...`) or coordinate by coordinate (`x0, x1, ..., y0, ...`).
+  The loader detects the order from how smoothly the offsets vary over the
+  mesh. If the data do not decide it, loading stops with an error; state the
+  order with `--smpl-blendshape-layout vertex_major` or
+  `--smpl-blendshape-layout coordinate_major`.
+- Chumpy-free `.pkl` files, which are passed to `smplx` unchanged.
+
+`.pkl` files that contain Chumpy objects cannot be loaded in the supported
+Python 3.12/3.13 environments; use an `.npz` file instead.
 
 ## Quick Start
 
 ### Run Examples
 
 ```bash
-pixi run python example.py --smpl path/to/smpl/model.pkl --smplx path/to/smplx/model.pkl -o output_dir
+cd tools/mhr_smpl_conversion
+pixi run python example.py \
+  --smpl path/to/smpl/model.npz \
+  --smplx path/to/smplx/model.npz \
+  -o output_dir
 ```
 Three conversions will be conducted and the results will be exported in three folders under the output_dir. The results folders are named as {source_model}\_{input_format}2{target_model}\_{method}(_{if_single_identity_sequence}):
 
