@@ -40,26 +40,12 @@ jobs:
   converted-assets:
     name: Check the converted assets of the release
     # The wheel's `mhr-download-assets --lod` needs them, so publish only a
-    # release that has them (see CONTRIBUTING.md).
+    # release whose converted assets come from its assets.zip (see
+    # CONTRIBUTING.md).
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Set up pixi
-        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
-        with:
-          environments: py312
-          cache: true
-
-      - name: Download and check the converted assets
-        run: |
-          pixi run -e py312 python -m mhr.download_assets \
-            --release "${GITHUB_REF_NAME}" --all-lods --no-extract \
-            --dest "${RUNNER_TEMP}/converted-assets"
+    uses: ./.github/workflows/check-release-assets.yml
+    with:
+      release: ${{ github.ref_name }}
 
   publish:
     name: Build and publish to PyPI

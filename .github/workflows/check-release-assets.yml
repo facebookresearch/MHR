@@ -1,0 +1,44 @@
+name: Check release assets
+
+# Check that the converted assets attached to a release were converted from
+# that release's assets.zip (see scripts/check_release_assets.py). The publish
+# workflow runs this for every version tag before it uploads the wheel.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release tag to check
+        required: true
+  workflow_call:
+    inputs:
+      release:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the converted assets of ${{ inputs.release }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
+        with:
+          environments: py312
+          cache: true
+
+      - name: Download, convert again and compare
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          pixi run -e py312 python -m scripts.check_release_assets \
+            --repo "${GITHUB_REPOSITORY}" --release "${RELEASE}"

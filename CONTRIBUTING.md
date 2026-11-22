@@ -41,10 +41,13 @@ installed. Before publishing a release:
    - `mhr-assets-v1.json`, `mhr-assets-v1-common.zip`, and every
      `mhr-assets-v1-lod<N>.zip`. `mhr-download-assets --lod` downloads them.
 3. Create the release as a draft, attach the files, then publish it. Its tag
-   starts the publish workflow, which checks that the converted assets of
-   the release download and match the manifest before it uploads the wheel;
-   a tag whose release does not have them yet fails that check and is not
-   published.
+   starts the publish workflow. Before it uploads the wheel, the workflow
+   downloads the release's `assets.zip` and converted assets, checks them
+   against the manifest, converts `assets.zip` again and compares the arrays
+   (`scripts/check_release_assets.py`). A release whose converted assets are
+   missing or do not come from its `assets.zip` is not published. To check a
+   release by hand, run the "Check release assets" workflow or
+   `pixi run python -m scripts.check_release_assets --release <tag>`.
 4. Check the published release:
    `mhr-download-assets --release <tag> --all-lods`, then
    `MHR_TEST_ASSETS=assets pixi run pytest scripts/tests/test_pure_torch_runtime.py`.
