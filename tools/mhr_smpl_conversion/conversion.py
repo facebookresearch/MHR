@@ -27,8 +27,8 @@ Key Features:
 
 Usage Example - SMPL to MHR:
     >>> import smplx
-    >>> from arvr.libraries.pymomentum.mhr.mhr import MHR
-    >>> from arvr.libraries.pymomentum.mhr.tools.smpl_mhr_conversion.conversion import Conversion
+    >>> from mhr.mhr import MHR
+    >>> from conversion import Conversion  # run from tools/mhr_smpl_conversion
     >>>
     >>> # Initialize models
     >>> mhr_model = MHR(...)

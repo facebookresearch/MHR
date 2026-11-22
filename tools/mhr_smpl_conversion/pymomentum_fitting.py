@@ -27,7 +27,6 @@ import numpy as np
 import pymomentum.solver as pym_solve
 import torch
 from mhr.mhr import MHR
-from sklearn.cluster import KMeans
 
 from file_assets import HEAD_HAND_MASK_FILE
 
@@ -172,10 +171,14 @@ class PyMomentumModelFitting:
                 if "Stage 2" in stage.info or "Stage 3" in stage.info:
                     continue
 
-            stage.active_parameter_mask = (
-                stage.active_parameter_mask & ~self._constant_parameter_mask
+            # The stages are cached and shared by later fit() calls: hold the
+            # constant parameters out of a copy, not of the cached stage.
+            active_stage = dataclasses.replace(
+                stage,
+                active_parameter_mask=stage.active_parameter_mask
+                & ~self._constant_parameter_mask,
             )
-            self._optimize_one_stage(target_vertices, stage)
+            self._optimize_one_stage(target_vertices, active_stage)
 
     def reset(self) -> None:
         """Reset all model parameters to zero."""
@@ -498,6 +501,8 @@ class PyMomentumModelFitting:
 
 def clustering_based_sampling(points: torch.Tensor | np.ndarray, p: int) -> list[int]:
     """Subsample points using K-means clustering for computational efficiency."""
+    from sklearn.cluster import KMeans
+
     if isinstance(points, torch.Tensor):
         points = points.cpu().numpy()
 
