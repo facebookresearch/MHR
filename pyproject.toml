@@ -50,7 +50,7 @@ platforms = ["osx-arm64", "linux-64"]
 [tool.pixi.tasks]
 demo = { cmd = "python demo.py", description = "Run demo script" }
 download-assets = { cmd = "python -m mhr.download_assets", description = "Download and extract release assets" }
-test = { cmd = "pytest tests/ -v", description = "Run pytest tests with verbose output" }
+test = { cmd = "pytest tests/ scripts/tests/ -v", description = "Run the package and maintainer-script tests with verbose output" }
 wheel-clean = { cmd = "rm -rf dist build *.egg-info", description = "Wheel: Clean build artifacts and distribution files" }
 wheel-build = { cmd = "python -m build", description = "Wheel: Build source distribution and wheel package" }
 wheel-test = { cmd = "python scripts/test_wheel.py", description = "Wheel: Test built wheel in fresh environment using uv" }

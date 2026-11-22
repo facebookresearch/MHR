@@ -52,6 +52,10 @@ jobs:
         run: |
           pixi run -e ${{ matrix.python-version }} download-assets
 
+      - name: Test asset conversion
+        run: |
+          MHR_TEST_ASSETS=assets pixi run -e ${{ matrix.python-version }} pytest scripts/tests/test_asset_conversion.py -v
+
       - name: Test demo
         run: |
           pixi run -e ${{ matrix.python-version }} demo
