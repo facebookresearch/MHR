@@ -64,11 +64,8 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 > PyMomentum's PyPI wheels cover Python 3.12 and 3.13 only. On Python 3.14, use Pixi or conda-forge `pymomentum` until PyMomentum publishes 3.14 wheels.
 
 ```bash
-# Install PyMomentum, which works with any recent PyTorch
-pip install pymomentum-core
-
-# Install MHR
-pip install mhr
+# Install MHR with PyMomentum (pymomentum-core, which works with any recent PyTorch)
+pip install "mhr[momentum]"
 
 # Download and unzip the model assets into ./assets
 mhr-download-assets
