@@ -64,7 +64,7 @@ uv = ">=0.5.0"
 hatchling = "*"
 hatch-vcs = "*"
 # demo.py and tools/ use trimesh; the mhr package does not.
-trimesh = ">=4.8.3,<5"
+trimesh = ">=4.8.3,<6"
 
 [tool.pixi.dependencies]
 pymomentum = ">=0.1.114"
