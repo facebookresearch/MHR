@@ -13,8 +13,9 @@
 # limitations under the License.
 
 
+import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Union
 
 import numpy as np
 import torch
@@ -25,38 +26,98 @@ from .utils import SparseLinear
 POSE_CORRECTIVES_SPARSE_MASK_NAME = "posedirs_sparse_mask"
 POSE_CORRECTIVES_COMPONENTS_NAME = "corrective_blendshapes"
 
+# Same variable and default as the --dest option of mhr-download-assets.
+ASSETS_DEST_ENV = "MHR_ASSETS_DEST"
+MODEL_FILE_NAME = "compact_v6_1.model"
+
+PathLike = Union[str, os.PathLike]
+
+
+def _package_asset_folder() -> Path:
+    """Return the assets folder next to the mhr package (source checkouts)."""
+
+    return Path(__file__).resolve().parent.parent / "assets"
+
+
+def _download_asset_folder() -> Path:
+    """Return the folder that mhr-download-assets extracts to by default."""
+
+    dest = os.environ.get(ASSETS_DEST_ENV) or "."
+    return Path(dest).absolute() / "assets"
+
+
+def get_asset_folder_candidates() -> list[Path]:
+    """Return the folders that get_default_asset_folder() searches, in order.
+
+    1. ``assets`` next to the ``mhr`` package, for a source or editable checkout.
+    2. ``$MHR_ASSETS_DEST/assets``, if ``MHR_ASSETS_DEST`` is set.
+    3. ``assets`` in the current working directory.
+
+    2 and 3 are where ``mhr-download-assets`` extracts the assets by default.
+    """
+
+    candidates = []
+    for folder in (_package_asset_folder(), _download_asset_folder(), Path.cwd() / "assets"):
+        if folder not in candidates:
+            candidates.append(folder)
+    return candidates
+
 
 def get_default_asset_folder() -> Path:
-    """Return the path to the default MHR asset folder."""
+    """Return the default MHR asset folder.
 
-    return Path(__file__).parent.parent / "assets"
+    This is the first folder from get_asset_folder_candidates() that contains
+    the MHR model file. If no folder contains it, this is the folder that
+    ``mhr-download-assets`` extracts to by default.
+    """
+
+    for folder in get_asset_folder_candidates():
+        if (folder / MODEL_FILE_NAME).is_file():
+            return folder
+    return _download_asset_folder()
 
 
-def get_mhr_fbx_path(folder: Path, lod: int) -> str:
+def asset_not_found_message(missing: list[str], searched: list[Path]) -> str:
+    """Return an error message for missing asset files, with the ways to fix it."""
+
+    lines = ["MHR asset files not found:"]
+    lines += [f"  {path}" for path in missing]
+    lines.append("Searched these asset folders:")
+    lines += [f"  {folder}" for folder in searched]
+    lines += [
+        "To fix it, do one of the following:",
+        "  - Run mhr-download-assets in your working directory. It extracts the assets to ./assets.",
+        f"  - Set {ASSETS_DEST_ENV} to the directory that contains the extracted assets folder.",
+        "  - Pass folder=<path to the assets folder> to MHR.from_files.",
+    ]
+    return "\n".join(lines)
+
+
+def get_mhr_fbx_path(folder: PathLike, lod: int) -> str:
     """Return the path to the MHR fbx file."""
 
-    asset_path = folder / f"lod{lod}.fbx"
+    asset_path = Path(folder) / f"lod{lod}.fbx"
     return str(asset_path)
 
 
-def get_mhr_model_path(folder: Path) -> str:
+def get_mhr_model_path(folder: PathLike) -> str:
     """Return the path to the MHR model definition file (same across LODs)."""
 
-    asset_path = folder / "compact_v6_1.model"
+    asset_path = Path(folder) / MODEL_FILE_NAME
     return str(asset_path)
 
 
-def get_mhr_blendshapes_path(folder: Path, lod: int) -> str:
+def get_mhr_blendshapes_path(folder: PathLike, lod: int) -> str:
     """Return the path to the file storing pose-dependent blendshapes."""
 
-    asset_path = folder / f"corrective_blendshapes_lod{lod}.npz"
+    asset_path = Path(folder) / f"corrective_blendshapes_lod{lod}.npz"
     return str(asset_path)
 
 
-def get_corrective_activation_path(folder: Path) -> str:
+def get_corrective_activation_path(folder: PathLike) -> str:
     """Return the path to the file storing activations for the pose-dependent correctives."""
 
-    asset_path = folder / "corrective_activation.npz"
+    asset_path = Path(folder) / "corrective_activation.npz"
     return str(asset_path)
 
 

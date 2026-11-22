@@ -32,6 +32,8 @@ import torch
 
 from .face_expression import FACE_EXPRESSION_NAMES
 from .io import (
+    asset_not_found_message,
+    get_asset_folder_candidates,
     get_corrective_activation_path,
     get_default_asset_folder,
     get_mhr_blendshapes_path,
@@ -136,18 +138,39 @@ class MHR(torch.nn.Module):
 
     @staticmethod
     def from_files(
-        folder: Path = get_default_asset_folder(),
+        folder: str | os.PathLike | None = None,
         device: torch.device = "cuda",
         lod: LOD = 1,
         wants_pose_correctives: bool = True,
     ) -> "MHR":
-        """Load character and model parameterization, and create full model."""
+        """Load character and model parameterization, and create full model.
+
+        ``folder`` is the folder with the MHR asset files. If it is None,
+        get_default_asset_folder() picks it when this method is called.
+        Raises FileNotFoundError if an asset file is missing.
+        """
+
+        if folder is None:
+            searched = get_asset_folder_candidates()
+            folder = get_default_asset_folder()
+        else:
+            folder = Path(folder)
+            searched = [folder]
 
         # Create character by fetching rig and model parameterization paths
         fbx_path = get_mhr_fbx_path(folder, lod)
         model_path = get_mhr_model_path(folder)
-        assert os.path.exists(fbx_path), f"FBX file not found at {fbx_path}"
-        assert os.path.exists(model_path), f"Model file not found at {model_path}"
+        blendshapes_path = get_mhr_blendshapes_path(folder, lod)
+        corrective_activation_path = (
+            get_corrective_activation_path(folder) if wants_pose_correctives else None
+        )
+        required_paths = [fbx_path, model_path, blendshapes_path]
+        if corrective_activation_path is not None:
+            required_paths.append(corrective_activation_path)
+        missing = [path for path in required_paths if not os.path.exists(path)]
+        if missing:
+            raise FileNotFoundError(asset_not_found_message(missing, searched))
+
         # Load rig and model parameterization
         character = pym_geometry.Character.load_fbx(
             fbx_path, model_path, load_blendshapes=True
@@ -168,18 +191,7 @@ class MHR(torch.nn.Module):
         # Set parameter sets for identity / facial expressions
         set_blendshape_parameter_sets(character)
 
-        # Retrieve correctives paths and create full model
-        blendshapes_path = get_mhr_blendshapes_path(folder, lod)
-        corrective_activation_path = (
-            get_corrective_activation_path(folder) if wants_pose_correctives else None
-        )
-        assert os.path.exists(
-            blendshapes_path
-        ), f"Blendshapes file not found at {blendshapes_path}"
-        if corrective_activation_path is not None:
-            assert os.path.exists(
-                corrective_activation_path
-            ), f"Corrective activation file not found at {corrective_activation_path}"
+        # Create full model with the correctives
         return MHR._create_model(
             character, blendshapes_path, corrective_activation_path, device
         )

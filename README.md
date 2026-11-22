@@ -131,6 +131,8 @@ face_expr_coeffs = 0.3 * torch.randn(batch_size, 72)     # Facial expression
 vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_expr_coeffs)
 ```
 
+`MHR.from_files()` uses the first of these folders that contains the assets: `assets` in a source checkout, `$MHR_ASSETS_DEST/assets`, then `./assets`, which is where `mhr-download-assets` extracts them. To use another folder, pass `folder="path/to/assets"`.
+
 ### Computing gradients
 
 Both the Python and TorchScript models support standard PyTorch autograd.
