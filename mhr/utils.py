@@ -84,14 +84,6 @@ class SparseLinear(torch.nn.Module):
         else:
             self.bias = None
 
-        # Added the following line to cope with torch.jit.trace as a
-        # temporary solution to build torchscript model.
-        self.register_buffer(
-            "dense_weight",
-            torch.zeros(self.sparse_shape[0], self.sparse_shape[1]),
-            persistent=False,
-        )
-
         # Initialize
         for out_idx in range(out_channels):
             # By default, self.weight is initialized with kaiming,
@@ -127,16 +119,19 @@ class SparseLinear(torch.nn.Module):
         # else:
         #     return (curr_weight @ x.T).T + self.bias
 
-        # Set elements in self.dense_weight at sparse_indices to sparse_weight
-        self.dense_weight.zero_()  # Clear previous values
-        self.dense_weight[self.sparse_indices[0], self.sparse_indices[1]] = (
+        # Build the dense weight in a new tensor on every call. Writing into a
+        # buffer shared across calls would change a tensor that autograd saved
+        # for an earlier call, so two forward calls followed by one backward
+        # call would fail.
+        dense_weight = self.sparse_weight.new_zeros(self.sparse_shape)
+        dense_weight[self.sparse_indices[0], self.sparse_indices[1]] = (
             self.sparse_weight
         )
         if self.bias is None:
-            return (self.dense_weight @ x.T).T
+            return (dense_weight @ x.T).T
             # return torch.sparse.mm(curr_weight, x.T).T
         else:
-            return (self.dense_weight @ x.T).T + self.bias
+            return (dense_weight @ x.T).T + self.bias
             # return torch.sparse.mm(curr_weight, x.T).T + self.bias
 
     def __repr__(self):
