@@ -697,7 +697,10 @@ class Conversion:
         Returns:
             Boolean tensor mask indicating which parameters are identity-related.
         """
-        scale_mask = self._mhr_model.character.parameter_transform.scaling_parameters
+        # A NumPy array on recent PyMomentum releases, a tensor on older ones.
+        scale_mask = torch.as_tensor(
+            self._mhr_model.character.parameter_transform.scaling_parameters
+        )
         identity_blendshape_mask = torch.zeros_like(scale_mask)
         identity_blendshape_mask[
             _NUM_RIG_PARAMETERS : _NUM_RIG_PARAMETERS

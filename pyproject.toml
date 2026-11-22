@@ -58,7 +58,7 @@ hatch-vcs = "*"
 trimesh = ">=4.8.3,<5"
 
 [tool.pixi.dependencies]
-pymomentum = ">=0.1.90"
+pymomentum = ">=0.1.114"
 
 [tool.pixi.feature.py312.dependencies]
 python = "3.12.*"

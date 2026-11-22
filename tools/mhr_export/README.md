@@ -6,11 +6,12 @@ glTF viewers can open.
 ## Installation
 
 The tool needs [PyMomentum](https://facebookresearch.github.io/momentum/). The
-repository's pixi environment includes it; with pip, install the version the
-tests run with on top of MHR:
+repository's pixi environment includes it. With pip, install it on top of MHR,
+and see the known Linux issue under "Option 3. Using pip" in the
+[main README](../../README.md):
 
 ```bash
-pip install "pymomentum-cpu==0.1.90.*"
+pip install pymomentum-core
 ```
 
 Download the MHR assets first (see the main README).

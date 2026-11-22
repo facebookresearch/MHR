@@ -294,8 +294,10 @@ class PyMomentumModelFitting:
         lbs_parameter_names = self._bs_character.parameter_transform.names[
             :_NUM_RIG_PARAMETERS
         ]
+        # Recent PyMomentum releases return NumPy arrays here and older ones
+        # return torch tensors; convert so that both work.
         parameter2joints_mapping = (
-            self._bs_character.parameter_transform.transform.numpy()
+            np.asarray(self._bs_character.parameter_transform.transform)
             .reshape(-1, 7, len(self._bs_character.parameter_transform.names))
             .sum(1)
         )[..., :_NUM_RIG_PARAMETERS].astype(bool)
@@ -309,9 +311,9 @@ class PyMomentumModelFitting:
         stages: list[PyMomentumOptimizationStage] = []
 
         # Level 0: Face rigid transformation
-        lbs_mask = self._bs_character.parameter_transform.rigid_parameters.clone()[
-            :_NUM_RIG_PARAMETERS
-        ]
+        lbs_mask = torch.as_tensor(
+            self._bs_character.parameter_transform.rigid_parameters
+        ).clone()[:_NUM_RIG_PARAMETERS]
         for i, name in enumerate(lbs_parameter_names):
             if "neck" in name or "head" in name:
                 lbs_mask[i] = True
@@ -367,11 +369,9 @@ class PyMomentumModelFitting:
             ]
         )
         # Level 2: Body rigid transformations only
-        lbs_mask = (
-            self._mhr_model.character.parameter_transform.rigid_parameters.clone()[
-                :_NUM_RIG_PARAMETERS
-            ]
-        )
+        lbs_mask = torch.as_tensor(
+            self._mhr_model.character.parameter_transform.rigid_parameters
+        ).clone()[:_NUM_RIG_PARAMETERS]
         blendshapes_mask = torch.zeros(self._num_blendshapes, dtype=lbs_mask.dtype)
         blendshapes_vertex_mask = torch.zeros(self._num_vertices, dtype=torch.float)
         stages.append(

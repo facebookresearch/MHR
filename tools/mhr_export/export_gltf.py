@@ -25,6 +25,11 @@ import argparse
 from pathlib import Path
 
 import numpy as np
+
+from mhr._pymomentum_version import check_pymomentum_version
+
+check_pymomentum_version()
+
 import pymomentum.geometry as pym_geometry
 
 from mhr.io import get_default_asset_folder, get_mhr_fbx_path, get_mhr_model_path
