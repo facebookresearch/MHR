@@ -1,0 +1,197 @@
+name: Update pixi.lock
+
+# Once a month, update every Pixi environment in pixi.lock to the newest
+# versions that pyproject.toml allows, test the new lock file, and open or
+# update one pull request with the result.
+#
+# A pull request opened with GITHUB_TOKEN does not start CI by itself: its
+# pull_request runs wait until a maintainer selects "Approve workflows to run".
+# This workflow therefore runs the CI checks itself (tests and demo in every
+# environment) and puts the results in the pull request description.
+
+on:
+  schedule:
+    - cron: "0 6 1 * *" # 06:00 UTC on the first day of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update and test
+    # Scheduled runs only in this repository, not in forks.
+    if: github.event_name != 'schedule' || github.repository == 'facebookresearch/MHR'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      changed: ${{ steps.update.outputs.changed }}
+      uploaded: ${{ steps.upload.outputs.artifact-id != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # hatch-vcs reads the mhr version from git tags
+          persist-credentials: false
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@9936258fee697aff89b3fed6ca1f80a382ef694e # v0.11.3
+        with:
+          run-install: false
+
+      - name: Update pixi.lock
+        id: update
+        run: |
+          set -euo pipefail
+          pixi update --json > "$RUNNER_TEMP/update.json"
+          if git diff --quiet -- pixi.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "pixi.lock is already up to date." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          pixi exec pixi-diff-to-markdown < "$RUNNER_TEMP/update.json" > "$RUNNER_TEMP/lock-diff.md"
+
+      - name: Download assets
+        if: steps.update.outputs.changed == 'true'
+        run: pixi run --frozen download-assets
+
+      - name: Run tests and demo in every environment
+        id: test
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          set -uo pipefail
+          results="$RUNNER_TEMP/results.md"
+          envs=$(pixi info --json | jq -r '.environments_info[].name')
+          if [ -z "$envs" ]; then
+            echo "::error::Found no Pixi environments."
+            exit 1
+          fi
+          printf '| Environment | Tests | Demo |\n|-|-|-|\n' > "$results"
+          status=0
+          for env in $envs; do
+            echo "::group::$env"
+            log="$RUNNER_TEMP/test-$env.log"
+            if pixi run --frozen -e "$env" test 2>&1 | tee "$log"; then
+              tests="passed"
+            else
+              tests="**failed**"
+              status=1
+            fi
+            counts=$(grep -E '^=+ .+ in [0-9.]+s' "$log" | tail -n 1 | tr -d '=' | xargs || true)
+            if pixi run --frozen -e "$env" demo; then
+              demo="passed"
+            else
+              demo="**failed**"
+              status=1
+            fi
+            echo "| \`$env\` | $tests ($counts) | $demo |" >> "$results"
+            echo "::endgroup::"
+          done
+          if [ "$status" -eq 0 ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write the pull request description
+        if: steps.update.outputs.changed == 'true'
+        env:
+          PASSED: ${{ steps.test.outputs.passed }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/pr-body.md"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            echo "Monthly \`pixi update\` of every environment in \`pixi.lock\`."
+            echo
+            echo "## Test results"
+            echo
+            if [ "$PASSED" = "true" ]; then
+              echo "Tests and demo pass in every environment."
+            else
+              echo "Some environments fail. Fix them on this branch, or close this pull request."
+            fi
+            echo
+            cat "$RUNNER_TEMP/results.md"
+            echo
+            echo "From workflow run $run_url on commit $GITHUB_SHA. Only linux-64 is tested; the osx-arm64 lock is updated but not run."
+            echo
+            echo "> [!NOTE]"
+            echo "> This pull request was opened with \`GITHUB_TOKEN\`, so its CI runs wait until a maintainer selects **Approve workflows to run**. The results above come from the workflow run that opened it."
+            echo
+            cat "$RUNNER_TEMP/lock-diff.md"
+          } > "$body"
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
+          # GitHub limits a pull request description to 65,536 characters.
+          # Cut at a line end and point to the run summary for the rest.
+          if [ "$(wc -c < "$body")" -gt 60000 ]; then
+            head -c 60000 "$body" | sed '$d' > "$body.cut"
+            printf '\n</details>\n\nTruncated. The full lock file diff is in the summary of %s.\n' "$run_url" >> "$body.cut"
+            mv "$body.cut" "$body"
+          fi
+          cp pixi.lock "$RUNNER_TEMP/pixi.lock"
+
+      - name: Upload the updated lock file
+        id: upload
+        if: steps.update.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pixi-lock-update
+          path: |
+            ${{ runner.temp }}/pixi.lock
+            ${{ runner.temp }}/pr-body.md
+          retention-days: 7
+
+      - name: Fail if any environment fails
+        if: steps.test.outputs.passed == 'false'
+        run: |
+          echo "::error::Tests or demo failed with the updated pixi.lock; see the step summary."
+          exit 1
+
+  open-pr:
+    name: Open or update the pull request
+    needs: update
+    # Also open it when tests fail, so maintainers see the failing update.
+    # Only from the default branch, so the pull request always targets it.
+    # Scheduled runs always use the default branch and have no event payload.
+    if: >-
+      ${{ !cancelled()
+      && needs.update.outputs.uploaded == 'true'
+      && (github.event_name == 'schedule'
+      || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the update branch
+      pull-requests: write # open or update the pull request and add its label
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the updated lock file
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pixi-lock-update
+          path: ${{ runner.temp }}/update
+
+      - name: Apply the updated lock file
+        run: cp "$RUNNER_TEMP/update/pixi.lock" pixi.lock
+
+      - name: Open or update the pull request
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
+        with:
+          branch: automation/update-pixi-lock
+          delete-branch: true
+          add-paths: pixi.lock
+          commit-message: Update pixi.lock
+          title: Update pixi.lock
+          body-path: ${{ runner.temp }}/update/pr-body.md
+          labels: dependencies
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
