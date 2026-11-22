@@ -55,9 +55,13 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 - Advantage: no codebase or model assets are required.
 - Disadvantage: Currently only support for LOD 1; limited access to model properties.
 
+> **Python 3.14:** loading the TorchScript model works there with PyTorch 2.14 and gives the same output as on Python 3.12, but PyTorch marks TorchScript as not guaranteed to work on Python 3.14 ([PyTorch 2.10 release notes](https://github.com/pytorch/pytorch/releases/tag/v2.10.0)). On Python 3.14, prefer `MHR.from_files` (Option 1).
+
 ### Option 3. Using pip (⚠️ Experimental)
 
 > **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
+>
+> PyMomentum's PyPI wheels cover Python 3.12 and 3.13 only. On Python 3.14, use Pixi or conda-forge `pymomentum` until PyMomentum publishes 3.14 wheels.
 
 ```bash
 # Install PyMomentum, which works with any recent PyTorch
@@ -80,7 +84,7 @@ mhr-download-assets
 
 ### Dependencies
 
-- Python >= 3.11
+- Python >= 3.12 (CI tests 3.12, 3.13 and 3.14 with Pixi; pip needs Python 3.12 or 3.13, see Option 3)
 - PyTorch
 - pymomentum >= 0.1.89 (CI tests 0.1.114)
 - trimesh >= 4.8.3 (for additional tools only: mhr-smpl conversion, LOD conversion and segmentation)

@@ -27,7 +27,7 @@ four normalized skinning influences per vertex.
 
 ## Requirements
 
-- The repository's Python environment (Python 3.11 or later)
+- The repository's Python environment (Python 3.12 or later)
 - Node.js and npm
 - An MHR checkout with its release assets available, including:
   - `assets/mhr_model.pt`
