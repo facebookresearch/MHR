@@ -28,6 +28,30 @@ Running it twice in the same environment gives byte-identical output. The
 bytes can change with the PyMomentum version, which the script records in
 `rig.npz`, and with the NumPy, Python and zlib versions that write the files.
 
+## Releasing
+
+Every release must also work for the MHR versions that are already
+installed. Before publishing a release:
+
+1. Convert the assets of the release as above, twice, and check that the
+   SHA-256 values of the two outputs match.
+2. Attach all of these to the GitHub release:
+   - `assets.zip`, with its current layout. Older wheels, `mhr-download-assets`
+     without `--lod`, and `pixi run download-assets` download it.
+   - `mhr-assets-v1.json`, `mhr-assets-v1-common.zip`, and every
+     `mhr-assets-v1-lod<N>.zip`. `mhr-download-assets --lod` downloads them.
+3. Create the release as a draft, attach the files, then publish it. Its tag
+   starts the publish workflow. Before it uploads the wheel, the workflow
+   downloads the release's `assets.zip` and converted assets, checks them
+   against the manifest, converts `assets.zip` again and compares the arrays
+   (`scripts/check_release_assets.py`). A release whose converted assets are
+   missing or do not come from its `assets.zip` is not published. To check a
+   release by hand, run the "Check release assets" workflow or
+   `pixi run python -m scripts.check_release_assets --release <tag>`.
+4. Check the published release:
+   `mhr-download-assets --release <tag> --all-lods`, then
+   `MHR_TEST_ASSETS=assets pixi run pytest scripts/tests/test_pure_torch_runtime.py`.
+
 ## Contributor License Agreement ("CLA")
 In order to accept your pull request, we need you to submit a CLA. You only need
 to do this once to work on any of Facebook's open source projects.

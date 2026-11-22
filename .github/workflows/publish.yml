@@ -37,9 +37,19 @@ jobs:
         run: |
           pixi run wheel-test
 
+  converted-assets:
+    name: Check the converted assets of the release
+    # The wheel's `mhr-download-assets --lod` needs them, so publish only a
+    # release whose converted assets come from its assets.zip (see
+    # CONTRIBUTING.md).
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/check-release-assets.yml
+    with:
+      release: ${{ github.ref_name }}
+
   publish:
     name: Build and publish to PyPI
-    needs: test
+    needs: [test, converted-assets]
     # Publish only from version tags. A manual run from a branch runs the
     # tests and skips this job.
     if: startsWith(github.ref, 'refs/tags/v')

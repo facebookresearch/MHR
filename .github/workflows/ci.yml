@@ -52,9 +52,9 @@ jobs:
         run: |
           pixi run -e ${{ matrix.python-version }} download-assets
 
-      - name: Test asset conversion
+      - name: Test asset conversion and the pure-PyTorch rig on the real assets
         run: |
-          MHR_TEST_ASSETS=assets pixi run -e ${{ matrix.python-version }} pytest scripts/tests/test_asset_conversion.py -v
+          MHR_TEST_ASSETS=assets pixi run -e ${{ matrix.python-version }} pytest scripts/tests/test_asset_conversion.py scripts/tests/test_torch_rig_parity.py scripts/tests/test_pure_torch_runtime.py -v
 
       - name: Test demo
         run: |

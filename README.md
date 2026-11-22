@@ -64,11 +64,8 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 > PyMomentum's PyPI wheels cover Python 3.12 and 3.13 only. On Python 3.14, use Pixi or conda-forge `pymomentum` until PyMomentum publishes 3.14 wheels.
 
 ```bash
-# Install PyMomentum, which works with any recent PyTorch
-pip install pymomentum-core
-
-# Install MHR
-pip install mhr
+# Install MHR with PyMomentum (pymomentum-core, which works with any recent PyTorch)
+pip install "mhr[momentum]"
 
 # Download and unzip the model assets into ./assets
 mhr-download-assets
@@ -82,11 +79,32 @@ mhr-download-assets
 
 
 
+### Option 4. Using pip without PyMomentum (from v1.2.0)
+
+From release v1.2.0 on, MHR also runs with PyTorch alone, from converted assets that each release publishes per LOD.
+
+```bash
+# Install MHR
+pip install mhr
+
+# Download the converted assets for LOD 1 into ./assets (about 25 MB)
+mhr-download-assets --lod 1
+```
+
+```python
+import torch
+from mhr import MHR  # needs no PyMomentum
+
+mhr_model = MHR.from_files(device=torch.device("cpu"), lod=1)
+```
+
+`mhr.MHR` is the model for new code (PyTorch only). `mhr.mhr.MHR` is the PyMomentum-backed API that the tools use; it subclasses `mhr.MHR`. Both give the same vertices, skeleton states and gradients, and each loads the other's saved state. `mhr.mhr` and the tools that use PyMomentum directly (SMPL conversion, glTF export) still need PyMomentum.
+
 ### Dependencies
 
 - Python >= 3.12 (CI tests 3.12, 3.13 and 3.14 with Pixi; pip needs Python 3.12 or 3.13, see Option 3)
 - PyTorch
-- pymomentum >= 0.1.89 (CI tests 0.1.114)
+- pymomentum >= 0.1.89, for `mhr.mhr` and the tools (CI tests 0.1.114)
 - trimesh >= 4.8.3 (for additional tools only: mhr-smpl conversion, LOD conversion and segmentation)
 
 ## Quick Start
@@ -136,6 +154,8 @@ vertices, skeleton_state = mhr_model(identity_coeffs, model_parameters, face_exp
 ```
 
 `MHR.from_files()` uses the first of these folders that contains the assets: `assets` in a source checkout, `$MHR_ASSETS_DEST/assets`, then `./assets`, which is where `mhr-download-assets` extracts them. To use another folder, pass `folder="path/to/assets"`.
+
+Without PyMomentum, use `from mhr import MHR` with the converted assets instead (see Option 4); it takes the same arguments.
 
 ### Computing gradients
 
@@ -190,8 +210,9 @@ MHR/
 │   └── mhr_model.pt                    # Torchscript model
 ├── demo.py                             # Basic demo script
 ├── mhr                                 # Main package
+│   ├── _model.py                       # MHR model on PyTorch alone (from mhr import MHR)
 │   ├── io.py                           # Asset loading utilities
-│   ├── mhr.py                          # MHR model implementation
+│   ├── mhr.py                          # MHR model loaded with PyMomentum
 │   └── utils.py                        # Helper functions
 ├── pyproject.toml                      # Pixi project configuration
 ├── tests                               # Unit tests
