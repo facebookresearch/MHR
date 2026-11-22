@@ -38,41 +38,37 @@ The tool uses barycentric interpolation for topology mapping and offers multiple
 
 ```bash
 # On top of MHR
-pixi add scikit-learn tqdm
+pixi add pymomentum scikit-learn tqdm "trimesh>=4.8.3,<5"
 pixi add --pypi smplx==0.1.28
 ```
+
+The conversion tool runs from an MHR source checkout. It is not part of the
+`mhr` PyPI or conda-forge packages.
 
 ### SMPL/SMPLX Model Files
 
 You'll need the official SMPL/SMPLX model files:
 
-1. **SMPL**: Download the `.npz` model (listed as **SMPL for Julia**) from the
-   [SMPL website](https://smpl.is.tue.mpg.de/). The standard neutral, male,
-   and female models with 6890 vertices are supported.
-2. **SMPL-X**: Download the official `.npz` model from the
+1. **SMPL**: Download from the [SMPL website](https://smpl.is.tue.mpg.de/).
+   Models with the standard 6890-vertex SMPL mesh are supported.
+2. **SMPL-X**: Download the `.npz` model from the
    [SMPL-X website](https://smpl-x.is.tue.mpg.de/).
 
-The SMPL loader accepts the official `.npz` file directly and normalizes common
-2D `posedirs` and `shapedirs` layouts, including `posedirs` shaped
-`(207, 20670)`. It also accepts Chumpy-free `.pkl` files.
-Legacy **SMPL for Python** `.pkl` files contain Chumpy objects and are not
-compatible with the supported Python 3.12/3.13 environments; use the `.npz`
-download instead. Third-party models are supported only when they use the
-standard SMPL topology and data schema.
+`example.py` loads the SMPL model with `smpl_model.load_smpl_model`, which
+accepts:
 
-The same loader is available programmatically:
+- `.npz` files with `posedirs` and `shapedirs` shaped `(6890, 3, components)`.
+- `.npz` files with these arrays flattened to `(components, 20670)` or
+  `(20670, components)`. The 20670 values can be ordered vertex by vertex
+  (`x0, y0, z0, x1, ...`) or coordinate by coordinate (`x0, x1, ..., y0, ...`).
+  The loader detects the order from how smoothly the offsets vary over the
+  mesh. If the data do not decide it, loading stops with an error; state the
+  order with `--smpl-blendshape-layout vertex_major` or
+  `--smpl-blendshape-layout coordinate_major`.
+- Chumpy-free `.pkl` files, which are passed to `smplx` unchanged.
 
-```python
-from mhr.smpl import load_smpl_model
-
-smpl_model = load_smpl_model("path/to/smpl/model.npz")
-```
-
-The checked-in Pixi project currently targets Linux and macOS. The packaged
-`mhr` library includes the loader above, but the full conversion tool and its
-optional `smplx` dependency are not installed by the PyPI or conda-forge
-packages. For native Windows use, run the conversion tool from an MHR source
-checkout and install `smplx` from PyPI in that environment.
+`.pkl` files that contain Chumpy objects cannot be loaded in the supported
+Python 3.12/3.13 environments; use an `.npz` file instead.
 
 ## Quick Start
 

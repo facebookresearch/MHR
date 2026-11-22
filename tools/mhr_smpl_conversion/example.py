@@ -26,8 +26,8 @@ import smplx
 import torch
 import trimesh
 from mhr.mhr import MHR
-from mhr.smpl import load_smpl_model
 from conversion import Conversion
+from smpl_model import BLENDSHAPE_LAYOUTS, load_smpl_model
 
 _INPUT_FILE = "./data/example_smplx_poses.npy"  # Directory to store input data
 _SAM3D_BODY_OUTPUT_DIR = (
@@ -49,9 +49,12 @@ class DEMO:
         output_dir: str,
         smpl_model_file: str | None,
         smplx_model_file: str | None,
+        smpl_blendshape_layout: str | None = None,
     ):
         if smpl_model_file is not None:
-            self.smpl_model = load_smpl_model(smpl_model_file)
+            self.smpl_model = load_smpl_model(
+                smpl_model_file, blendshape_layout=smpl_blendshape_layout
+            )
         if smplx_model_file is not None:
             self.smplx_model = smplx.SMPLX(
                 model_path=smplx_model_file,
@@ -326,7 +329,17 @@ def _parse_arguments():
         type=str,
         required=False,
         default="./data/SMPL_NEUTRAL.npz",
-        help="Path to a standard SMPL .npz or Chumpy-free .pkl model file.",
+        help="Path to an SMPL .npz or Chumpy-free .pkl model file.",
+    )
+
+    parser.add_argument(
+        "--smpl-blendshape-layout",
+        type=str,
+        choices=BLENDSHAPE_LAYOUTS,
+        default=None,
+        help="Element order of flattened 2D posedirs/shapedirs in the SMPL .npz "
+        "file: vertex_major (x0, y0, z0, x1, ...) or coordinate_major "
+        "(x0, x1, ..., y0, ...). Detected from the mesh when not given.",
     )
 
     parser.add_argument(
@@ -361,4 +374,10 @@ def _parse_arguments():
 if __name__ == "__main__":
     args = _parse_arguments()
     demo = DEMO()
-    demo.run_examples(args.input, args.output, args.smpl, args.smplx)
+    demo.run_examples(
+        args.input,
+        args.output,
+        args.smpl,
+        args.smplx,
+        args.smpl_blendshape_layout,
+    )
