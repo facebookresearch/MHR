@@ -40,6 +40,9 @@ jobs:
   publish:
     name: Build and publish to PyPI
     needs: test
+    # Publish only from version tags. A manual run from a branch runs the
+    # tests and skips this job.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: release
     permissions:
