@@ -19,4 +19,18 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
-__all__ = ["FACE_EXPRESSION_NAMES", "__version__"]
+__all__ = ["FACE_EXPRESSION_NAMES", "MHR", "__version__"]
+
+
+def __getattr__(name: str):
+    # Import the model on first use, so that `import mhr` and the asset
+    # downloader do not load PyTorch.
+    if name == "MHR":
+        from ._model import MHR
+
+        return MHR
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | {"MHR"})

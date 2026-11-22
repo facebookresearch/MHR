@@ -3,7 +3,7 @@ authors = [{name = "MHR Contributors"}]
 dependencies = ["numpy", "torch"]
 name = "mhr"
 description = "Momentum Human Rig: an anatomically inspired parametric full-body digital human model"
-# mhr.MHR needs PyMomentum, which has no Python 3.11 build on PyPI and none on
+# mhr.mhr.MHR needs PyMomentum, which has no Python 3.11 build on PyPI and none on
 # conda-forge before 0.1.114 (MHR supports PyMomentum >= 0.1.89).
 requires-python = ">= 3.12"
 dynamic = ["version"]
