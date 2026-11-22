@@ -71,7 +71,7 @@ Usage Example - MHR to SMPL:
     >>> smpl_meshes = result.result_meshes
 
 Method Selection:
-    - "pymomentum": CPU-only, hierarchical optimization, only supports MHR->SMPL(X)
+    - "pymomentum": CPU-only, hierarchical optimization, only supports SMPL(X)->MHR
     - "pytorch": GPU-enabled, faster for large batches
 
 Conversion Process:
@@ -292,6 +292,7 @@ class Conversion:
                 smpl_vertices,
                 target_vertices,
                 error_threshold=ConversionConstants.DEFAULT_ERROR_THRESHOLD,
+                single_identity=single_identity,
                 exclude_expression=exclude_expression,
                 smpl_parameters=smpl_parameters,
             )
@@ -1214,9 +1215,11 @@ class Conversion:
                 # Get the identity related parameters mask, so that these can be set to constant.
                 identity_parameter_mask = self._get_identity_parameter_mask()
 
+                # Hold the given identity constant. single_identity=True would
+                # estimate a new identity from the interpolated sequence instead.
                 improved_results = self._s2m_fit_mhr_using_pymomentum(
                     sequence_vertices,
-                    single_identity=True,
+                    single_identity=False,
                     is_tracking=True,
                     exclude_expression=exclude_expression,
                     known_parameters=(identity_parameter_mask, full_parameter),

@@ -159,9 +159,13 @@ class PyMomentumModelFitting:
             if verbose:
                 logger.info("Starting %s...", stage.info)
             if stage.constant_parameter_mask is not None:
+                # Add the stage's constant parameters to the ones the caller
+                # holds constant, such as a single identity; do not replace them.
+                constant_mask = (
+                    self._constant_parameter_mask | stage.constant_parameter_mask
+                )
                 self.set_constant_parameters(
-                    stage.constant_parameter_mask,
-                    self._solved_parameters.clone()[stage.constant_parameter_mask],
+                    constant_mask, self._solved_parameters.clone()[constant_mask]
                 )
             # Restore the initial global rigid transform for the whole body.
             if "Stage 2" in stage.info:
