@@ -15,9 +15,26 @@
 
 """PyMomentum helpers that moved between releases."""
 
+import unittest
+
 try:
     from pymomentum.geometry_test_utils import create_test_character
-except ImportError:  # older PyMomentum releases
-    from pymomentum.geometry import create_test_character
+except ModuleNotFoundError as error:
+    if error.name != "pymomentum.geometry_test_utils":
+        raise
+    import pymomentum.geometry as _geometry
+
+    if hasattr(_geometry, "create_test_character"):  # older PyMomentum releases
+        create_test_character = _geometry.create_test_character
+    else:
+        # The PyPI wheels of recent releases (pymomentum-cpu, -gpu and -core
+        # 0.1.114) ship neither helper. Only the tests that need a test
+        # character skip; the pip CI job checks the real model against the
+        # TorchScript model instead.
+        def create_test_character(*args, **kwargs):
+            raise unittest.SkipTest(
+                "this PyMomentum build has no create_test_character"
+            )
+
 
 __all__ = ["create_test_character"]
