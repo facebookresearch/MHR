@@ -59,7 +59,7 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 
 ### Option 3. Using pip (⚠️ Experimental)
 
-> **Note:** pip installation is **experimental**. Some dependencies (e.g., `pymomentum`) may not resolve correctly on all platforms. If you encounter issues, please use the recommended Pixi installation above.
+> **Note:** pip installation stays **experimental**, mainly because of the Linux crash below, which needs a PyMomentum release on PyPI to fix. CI installs MHR with pip and checks the model on Ubuntu 22.04 and 24.04, macOS 15 (Apple silicon), and Windows with Python 3.12 and 3.13, and on Rocky Linux 9 with Python 3.12 ([pip install workflow](https://github.com/facebookresearch/MHR/actions/workflows/pip.yml)). If you encounter issues, please use the recommended Pixi installation above.
 >
 > PyMomentum's PyPI wheels cover Python 3.12 and 3.13 only. On Python 3.14, use Pixi or conda-forge `pymomentum` until PyMomentum publishes 3.14 wheels.
 
@@ -70,11 +70,11 @@ pip install pymomentum-core
 # Install MHR
 pip install mhr
 
-# Download and unzip the model assets
+# Download and unzip the model assets into ./assets
 mhr-download-assets
 ```
 
-> **Known issue on Linux:** the PyPI builds of PyMomentum ship a private copy of `libstdc++`. Depending on which PyTorch build loads the system copy first, the two copies can mix, and then `MHR.from_files` crashes with a segmentation fault ([#44](https://github.com/facebookresearch/MHR/issues/44)). No PyMomentum release on PyPI fixes this yet. It happens with `pymomentum-cpu`, which requires PyTorch 2.8, and with the CPU-only PyTorch wheels from download.pytorch.org (seen on CentOS Stream 9); `pymomentum-core` with the default PyTorch from PyPI did not crash in our tests. If you hit the crash, use the Pixi environment or conda-forge `pymomentum`, or start Python with PyMomentum's copy preloaded:
+> **Known issue on Linux:** the PyPI builds of PyMomentum ship a private copy of `libstdc++`. Depending on which PyTorch build loads the system copy first, the two copies can mix, and then `MHR.from_files` crashes with a segmentation fault ([#44](https://github.com/facebookresearch/MHR/issues/44)). No PyMomentum release on PyPI fixes this yet. It happens with `pymomentum-cpu`, which requires PyTorch 2.8, and with the CPU-only PyTorch wheels from download.pytorch.org, on every Linux distribution that CI tests. `pymomentum-core` with the default PyTorch from PyPI does not crash there, and macOS and Windows are not affected. If you hit the crash, use the Pixi environment or conda-forge `pymomentum`, or start Python with PyMomentum's copy preloaded:
 >
 > ```bash
 > LD_PRELOAD=$(python -c "import glob, sysconfig; print(glob.glob(sysconfig.get_paths()['purelib'] + '/pymomentum_*.libs/libstdc++*.so*')[0])") python demo.py

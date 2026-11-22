@@ -1,0 +1,240 @@
+name: pip install
+
+# Installs MHR with pip into a clean virtual environment, the way users do,
+# and checks that the model loads and matches the TorchScript reference model.
+# PyPI dependencies change without a commit here, so this also runs weekly.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - "**"
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Release whose assets.zip the forward-pass check uses.
+  MHR_ASSETS_RELEASE: v1.0.1
+
+jobs:
+  pip:
+    name: pip install (${{ matrix.os }}, py${{ matrix.python-version }}, pymomentum-${{ matrix.pymomentum }}, torch-${{ matrix.torch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-15, windows-latest]
+        python-version: ["3.12", "3.13"]
+        pymomentum: [core, cpu]
+        # pypi: the PyTorch that pip resolves from PyPI.
+        torch: [pypi]
+        include:
+          # CPU-only PyTorch from the PyTorch index instead of the PyPI
+          # build, which is the CUDA build on Linux.
+          - os: ubuntu-22.04
+            python-version: "3.12"
+            pymomentum: core
+            torch: cpu
+            torch-index: https://download.pytorch.org/whl/cpu
+          - os: ubuntu-24.04
+            python-version: "3.13"
+            pymomentum: core
+            torch: cpu
+            torch-index: https://download.pytorch.org/whl/cpu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # hatch-vcs derives the package version from the git history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create a clean virtual environment
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "$RUNNER_TEMP/venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: pip install MHR and pymomentum-${{ matrix.pymomentum }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -n "${{ matrix.torch-index }}" ]; then
+            python -m pip install torch --index-url "${{ matrix.torch-index }}"
+          fi
+          python -m pip install "pymomentum-${{ matrix.pymomentum }}" ".[test]"
+          python -m pip list
+          python -m pip check
+
+      # The Linux PyMomentum wheels bundle a libstdc++ that clashes with the
+      # system copy. With pymomentum-cpu (PyTorch 2.8) or CPU-only PyTorch,
+      # MHR.from_files then crashes. Preload the bundled copy, as the README
+      # describes.
+      - name: Preload PyMomentum's libstdc++ (Linux, pymomentum-cpu or CPU-only PyTorch)
+        if: ${{ runner.os == 'Linux' && (matrix.pymomentum == 'cpu' || matrix.torch-index) }}
+        run: |
+          purelib=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+          set -- "$purelib"/pymomentum_*.libs/libstdc++*.so*
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "Expected one bundled libstdc++, found: $*"
+            exit 1
+          fi
+          echo "LD_PRELOAD=$1" | tee -a "$GITHUB_ENV"
+
+      - name: Show the loaded libstdc++ copies (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          python -c "import torch, pymomentum.geometry; print(sorted({l.split()[-1] for l in open('/proc/self/maps') if 'libstdc++' in l}))"
+
+      - name: Import mhr.mhr from the installed package
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -X faulthandler -c '
+          import sys
+          import mhr
+          import mhr.mhr
+          import torch
+
+          print("mhr", mhr.__version__, mhr.__file__)
+          print("torch", torch.__version__)
+          assert mhr.__file__.startswith(sys.prefix), "mhr is not imported from the venv"
+          '
+
+      - name: Run tests against the installed package
+        # importlib mode keeps the checkout off sys.path, so `import mhr`
+        # resolves to the installed package.
+        run: pytest tests -v --import-mode=importlib
+
+      - name: Restore model assets
+        id: assets-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mhr-assets/assets
+          key: mhr-assets-${{ env.MHR_ASSETS_RELEASE }}-${{ runner.os }}
+
+      - name: Download model assets with mhr-download-assets
+        if: ${{ steps.assets-cache.outputs.cache-hit != 'true' }}
+        run: |
+          mhr-download-assets --release "$MHR_ASSETS_RELEASE" --dest "$RUNNER_TEMP/mhr-assets"
+          rm "$RUNNER_TEMP/mhr-assets/assets.zip"
+
+      - name: Forward pass of the LOD 1 model against the TorchScript model
+        working-directory: ${{ runner.temp }}/mhr-assets
+        run: python -X faulthandler "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"
+
+  # RHEL 9 and its rebuilds ship an older system libstdc++ (GCC 11) than the
+  # Ubuntu runners.
+  pip-rhel:
+    name: pip install (rockylinux-9, py3.12, pymomentum-${{ matrix.pymomentum }}, torch-${{ matrix.torch }})
+    runs-on: ubuntu-24.04
+    container:
+      image: rockylinux/rockylinux:9
+      # The image does not set PATH, so a GITHUB_PATH entry would replace it.
+      env:
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    strategy:
+      fail-fast: false
+      matrix:
+        pymomentum: [core, cpu]
+        torch: [pypi]
+        include:
+          - pymomentum: core
+            torch: cpu
+            torch-index: https://download.pytorch.org/whl/cpu
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install Python 3.12 and git
+        run: dnf install -y --setopt=install_weak_deps=False python3.12 python3.12-pip git-core tar gzip zstd
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create a clean virtual environment
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          python3.12 -m venv "$RUNNER_TEMP/venv"
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+
+      - name: pip install MHR and pymomentum-${{ matrix.pymomentum }}
+        run: |
+          python -m pip install --upgrade pip
+          if [ -n "${{ matrix.torch-index }}" ]; then
+            python -m pip install torch --index-url "${{ matrix.torch-index }}"
+          fi
+          python -m pip install "pymomentum-${{ matrix.pymomentum }}" ".[test]"
+          python -m pip list
+          python -m pip check
+
+      - name: Preload PyMomentum's libstdc++ (pymomentum-cpu or CPU-only PyTorch)
+        if: ${{ matrix.pymomentum == 'cpu' || matrix.torch-index }}
+        run: |
+          purelib=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+          set -- "$purelib"/pymomentum_*.libs/libstdc++*.so*
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "Expected one bundled libstdc++, found: $*"
+            exit 1
+          fi
+          echo "LD_PRELOAD=$1" | tee -a "$GITHUB_ENV"
+
+      - name: Show the loaded libstdc++ copies
+        run: |
+          python -c "import torch, pymomentum.geometry; print(sorted({l.split()[-1] for l in open('/proc/self/maps') if 'libstdc++' in l}))"
+
+      - name: Import mhr.mhr from the installed package
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -X faulthandler -c '
+          import sys
+          import mhr
+          import mhr.mhr
+          import torch
+
+          print("mhr", mhr.__version__, mhr.__file__)
+          print("torch", torch.__version__)
+          assert mhr.__file__.startswith(sys.prefix), "mhr is not imported from the venv"
+          '
+
+      - name: Run tests against the installed package
+        run: pytest tests -v --import-mode=importlib
+
+      - name: Restore model assets
+        id: assets-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mhr-assets/assets
+          key: mhr-assets-${{ env.MHR_ASSETS_RELEASE }}-rockylinux-9
+
+      - name: Download model assets with mhr-download-assets
+        if: ${{ steps.assets-cache.outputs.cache-hit != 'true' }}
+        run: |
+          mhr-download-assets --release "$MHR_ASSETS_RELEASE" --dest "$RUNNER_TEMP/mhr-assets"
+          rm "$RUNNER_TEMP/mhr-assets/assets.zip"
+
+      - name: Forward pass of the LOD 1 model against the TorchScript model
+        working-directory: ${{ runner.temp }}/mhr-assets
+        run: python -X faulthandler "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"
