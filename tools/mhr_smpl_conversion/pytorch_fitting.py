@@ -105,6 +105,20 @@ class OptimizationConstants:
     SMPL_TRACKING_LR_FINE = 0.005
     SMPL_EDGE_TO_VERTEX_TRANSITION_EPOCH = 50
 
+    # Fast MHR -> SMPL(X) fitting (fast=True): a shortened Adam stage, then
+    # Levenberg-Marquardt steps on the vertex error.
+    SMPL_FAST_COARSE_ITERATIONS = (20, 40, 20)
+    SMPL_FAST_LM_ITERATIONS = 3
+    SMPL_FAST_WARM_START_LM_ITERATIONS = 2
+    SMPL_FAST_LM_CHUNK_SIZE = 8
+    # A warm-started frame whose mean vertex error stays above this (meters),
+    # for example after a cut in a video, is fitted again without the start.
+    SMPL_FAST_WARM_START_MAX_ERROR = 0.015
+    SMPL_FAST_LM_INITIAL_DAMPING = 1e-3
+    SMPL_FAST_LM_DAMPING_DECREASE = 0.3
+    SMPL_FAST_LM_DAMPING_INCREASE = 10.0
+    SMPL_FAST_LM_MAX_DAMPING_TRIALS = 5
+
 
 class OptimizationStage(NamedTuple):
     """Configuration for a single optimization stage."""
@@ -1226,6 +1240,8 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         single_identity: bool,
         is_tracking: bool,
         known_parameters: dict[str, torch.Tensor] | None = None,
+        fast: bool = False,
+        initial_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Fit SMPL model to target vertices using PyTorch optimizer.
@@ -1233,12 +1249,26 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         Args:
             target_vertices: Target vertices in SMPL mesh topology for each frame
             single_identity: Whether to use a single identity (betas) for all frames
-            is_tracking: Whether to use tracking information to initialize fitting parameters
+            is_tracking: Whether to use tracking information to initialize fitting parameters.
+                With fast=True, each frame starts from the previous frame's result.
             known_parameters: Dictionary of known parameters to keep constant
+            fast: Use the fast fitting path (see _fit_fast). Results differ
+                slightly from the default path. Requires single_identity=False.
+            initial_parameters: Only with fast=True. SMPL(X) parameters to start
+                from, for example the result for the previous video frame, as
+                returned by this method. Each value has one row per frame or a
+                single row for all frames.
 
         Returns:
             Dictionary containing fitted SMPL parameters
         """
+        if fast and single_identity:
+            raise ValueError(
+                "Fast fitting estimates the body shape of each frame; "
+                "use single_identity=False."
+            )
+        if initial_parameters is not None and not fast:
+            raise ValueError("initial_parameters requires fast=True.")
         num_frames = target_vertices.shape[0]
         target_vertices_center = 0.5 * (
             target_vertices.min(1)[0] + target_vertices.max(1)[0]
@@ -1268,7 +1298,15 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                     frame_weights[..., None] * variables["betas"]
                 ).sum(0, keepdim=True)
 
-        if is_tracking and target_vertices.shape[0] > 16 * self._batch_size:
+        if fast:
+            logger.info("Fast fitting of each frame...")
+            variables = self._fit_fast(
+                target_vertices,
+                target_vertices_center,
+                is_tracking,
+                initial_parameters,
+            )
+        elif is_tracking and target_vertices.shape[0] > 16 * self._batch_size:
             logger.info("Optimize parameters for each frame by tracking...")
             variables = self._track_smpl(
                 target_vertices, single_identity, known_parameters
@@ -1495,6 +1533,232 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                     parameters[k][batch_frame_indices] = batch_parameters[k]
 
         return parameters
+
+    def _fit_fast(
+        self,
+        target_vertices: torch.Tensor,
+        target_vertices_center: torch.Tensor,
+        is_tracking: bool,
+        initial_parameters: dict[str, torch.Tensor | np.ndarray] | None,
+    ) -> dict[str, torch.Tensor]:
+        """Fit each frame with a shortened Adam stage and Levenberg-Marquardt.
+
+        A frame without a starting point runs the default initial pose stages
+        with half the steps (80 instead of 160) and then
+        SMPL_FAST_LM_ITERATIONS Levenberg-Marquardt (LM) steps on the vertex
+        error, which is the objective the default path's final 300 Adam steps
+        minimize. A frame with a starting point (initial_parameters, or the
+        previous frame when is_tracking is True) runs
+        SMPL_FAST_WARM_START_LM_ITERATIONS LM steps only.
+
+        Args:
+            target_vertices: Centered target vertices [B, V, 3]
+            target_vertices_center: The center removed from each frame [B, 3]
+            is_tracking: Start each frame from the previous frame's result
+            initial_parameters: Parameters to start from, in the coordinates of
+                the input (not centered); one row per frame or a single row
+
+        Returns:
+            Fitted parameters, with translation in centered coordinates
+        """
+        num_frames = target_vertices.shape[0]
+        initialization = None
+        if initial_parameters is not None:
+            fitted_names = self._define_trainable_variables(1, False).keys()
+            initialization = {}
+            for name, value in initial_parameters.items():
+                if name not in fitted_names:
+                    continue
+                value = self._to_tensor(value)
+                if value.shape[0] not in (1, num_frames):
+                    raise ValueError(
+                        f"initial_parameters['{name}'] has {value.shape[0]} rows; "
+                        f"expected 1 or {num_frames}."
+                    )
+                initialization[name] = value.expand(num_frames, *value.shape[1:])
+
+        if not is_tracking:
+            return self._fit_fast_batch(
+                target_vertices, target_vertices_center, initialization
+            )
+
+        frame_results = []
+        previous = None
+        for frame in range(num_frames):
+            if frame == 0:
+                start = (
+                    None
+                    if initialization is None
+                    else {k: v[:1] for k, v in initialization.items()}
+                )
+            else:
+                start = dict(previous)
+                start["transl"] = previous["transl"] + target_vertices_center[frame - 1]
+            previous = self._fit_fast_batch(
+                target_vertices[frame : frame + 1],
+                target_vertices_center[frame : frame + 1],
+                start,
+            )
+            frame_results.append(previous)
+        return {
+            name: torch.cat([result[name] for result in frame_results])
+            for name in frame_results[0]
+        }
+
+    def _fit_fast_batch(
+        self,
+        target_vertices: torch.Tensor,
+        target_vertices_center: torch.Tensor,
+        initialization: dict[str, torch.Tensor] | None,
+    ) -> dict[str, torch.Tensor]:
+        """Fit a batch of independent frames for _fit_fast."""
+        if initialization is None:
+            variables = self._optimize_smpl(
+                target_vertices,
+                single_identity=False,
+                iterations=(OptimizationConstants.SMPL_FAST_COARSE_ITERATIONS, 0),
+            )
+            iterations = OptimizationConstants.SMPL_FAST_LM_ITERATIONS
+        else:
+            start = {k: v.detach().clone() for k, v in initialization.items()}
+            if "transl" in start:
+                start["transl"] = start["transl"] - target_vertices_center
+            variables = self._define_trainable_variables(
+                target_vertices.shape[0],
+                single_identity=False,
+                variable_initialization=start,
+            )
+            iterations = OptimizationConstants.SMPL_FAST_WARM_START_LM_ITERATIONS
+        variables = self._refine_with_levenberg_marquardt(
+            target_vertices, variables, iterations
+        )
+        if initialization is None:
+            return variables
+
+        # Fit frames that the starting point did not suit again from scratch,
+        # and keep the better result of each.
+        errors = self._mean_vertex_errors(target_vertices, variables)
+        retry = errors > OptimizationConstants.SMPL_FAST_WARM_START_MAX_ERROR
+        if retry.any():
+            refit = self._fit_fast_batch(
+                target_vertices[retry], target_vertices_center[retry], None
+            )
+            better = (
+                self._mean_vertex_errors(target_vertices[retry], refit) < errors[retry]
+            )
+            indices = torch.nonzero(retry)[:, 0][better]
+            for name in variables:
+                variables[name][indices] = refit[name][better]
+        return variables
+
+    def _mean_vertex_errors(
+        self, target_vertices: torch.Tensor, variables: dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """Mean vertex distance of each frame to its target [B]."""
+        with torch.no_grad():
+            parameters = self._get_batched_body_model_parameters(
+                variables, 0, target_vertices.shape[0]
+            )
+            vertices = self._smpl_model(**parameters).vertices
+            return (vertices - target_vertices).norm(dim=-1).mean(1)
+
+    def _refine_with_levenberg_marquardt(
+        self,
+        target_vertices: torch.Tensor,
+        variables: dict[str, torch.Tensor],
+        iterations: int,
+    ) -> dict[str, torch.Tensor]:
+        """Minimize the summed squared vertex error of each frame with
+        Levenberg-Marquardt steps.
+
+        Each frame is solved on its own, with its own damping, from the full
+        Jacobian of its vertices with respect to its parameters. A step is
+        taken only if it lowers that frame's error, so the error never grows.
+
+        Args:
+            target_vertices: Target vertices [B, V, 3]
+            variables: Parameters to start from, one row per frame
+            iterations: Number of LM steps
+
+        Returns:
+            The refined parameters, with the same names and shapes
+        """
+        names = list(variables.keys())
+        sizes = [variables[name].shape[1] for name in names]
+        x = torch.cat([variables[name].detach().to(self._device) for name in names], 1)
+        chunk_size = OptimizationConstants.SMPL_FAST_LM_CHUNK_SIZE
+        refined = [
+            self._levenberg_marquardt_chunk(
+                target_vertices[start : start + chunk_size],
+                x[start : start + chunk_size],
+                names,
+                sizes,
+                iterations,
+            )
+            for start in range(0, x.shape[0], chunk_size)
+        ]
+        x = torch.cat(refined)
+        return {
+            name: value.clone() for name, value in zip(names, torch.split(x, sizes, 1))
+        }
+
+    def _levenberg_marquardt_chunk(
+        self,
+        target_vertices: torch.Tensor,
+        x: torch.Tensor,
+        names: list[str],
+        sizes: list[int],
+        iterations: int,
+    ) -> torch.Tensor:
+        """Run LM steps on a chunk of frames; x holds one parameter row per frame."""
+        from torch.func import jacfwd, vmap
+
+        def frame_vertices(frame_x: torch.Tensor) -> torch.Tensor:
+            parts = dict(zip(names, torch.split(frame_x[None], sizes, 1)))
+            parameters = self._get_batched_body_model_parameters(parts, 0, 1)
+            return self._smpl_model(**parameters).vertices.reshape(-1)
+
+        constants = OptimizationConstants
+        target = target_vertices.reshape(target_vertices.shape[0], -1)
+        with torch.no_grad():
+            residual = vmap(frame_vertices)(x) - target
+            cost = residual.square().sum(1)
+            damping = torch.full_like(cost, constants.SMPL_FAST_LM_INITIAL_DAMPING)
+            for _ in range(iterations):
+                jacobian = vmap(jacfwd(frame_vertices))(x)
+                jtj = jacobian.transpose(1, 2) @ jacobian
+                gradient = (jacobian.transpose(1, 2) @ residual[..., None])[..., 0]
+                diagonal = torch.diagonal(jtj, dim1=1, dim2=2) + 1e-6
+                pending = torch.ones_like(cost, dtype=torch.bool)
+                for _ in range(constants.SMPL_FAST_LM_MAX_DAMPING_TRIALS):
+                    # The damped normal matrix is symmetric positive definite;
+                    # solve it by Cholesky in double precision. A frame whose
+                    # factorization fails takes no step and gets more damping.
+                    hessian = jtj + torch.diag_embed(damping[:, None] * diagonal)
+                    factor, info = torch.linalg.cholesky_ex(hessian.double())
+                    step = -torch.cholesky_solve(
+                        gradient.double()[..., None], factor
+                    )[..., 0].to(x.dtype)
+                    step = torch.where((info == 0)[:, None], step, torch.zeros_like(step))
+                    trial_residual = vmap(frame_vertices)(x + step) - target
+                    trial_cost = trial_residual.square().sum(1)
+                    accept = pending & (trial_cost < cost)
+                    x = torch.where(accept[:, None], x + step, x)
+                    residual = torch.where(accept[:, None], trial_residual, residual)
+                    cost = torch.where(accept, trial_cost, cost)
+                    damping = torch.where(
+                        accept,
+                        damping * constants.SMPL_FAST_LM_DAMPING_DECREASE,
+                        torch.where(
+                            pending,
+                            damping * constants.SMPL_FAST_LM_DAMPING_INCREASE,
+                            damping,
+                        ),
+                    )
+                    pending = pending & ~accept
+                    if not pending.any():
+                        break
+        return x
 
     def _optimize_smpl(
         self,
