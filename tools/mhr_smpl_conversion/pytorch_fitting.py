@@ -105,9 +105,11 @@ class OptimizationConstants:
     SMPL_TRACKING_LR_FINE = 0.005
     SMPL_EDGE_TO_VERTEX_TRANSITION_EPOCH = 50
 
-    # Fast MHR -> SMPL(X) fitting (fast=True): a shortened Adam stage, then
-    # Levenberg-Marquardt steps on the vertex error.
-    SMPL_FAST_COARSE_ITERATIONS = (20, 40, 20)
+    # Fast MHR -> SMPL(X) fitting (fast=True): the default initial pose stages,
+    # then Levenberg-Marquardt steps on the vertex error instead of the final
+    # Adam stage. Fewer initial pose steps leave some large poses in a wrong
+    # pose that the Levenberg-Marquardt steps cannot leave.
+    SMPL_FAST_COARSE_ITERATIONS = (40, 80, 40)
     SMPL_FAST_LM_ITERATIONS = 3
     SMPL_FAST_WARM_START_LM_ITERATIONS = 2
     SMPL_FAST_LM_CHUNK_SIZE = 8
@@ -1541,10 +1543,10 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         is_tracking: bool,
         initial_parameters: dict[str, torch.Tensor | np.ndarray] | None,
     ) -> dict[str, torch.Tensor]:
-        """Fit each frame with a shortened Adam stage and Levenberg-Marquardt.
+        """Fit each frame with the initial Adam stages and Levenberg-Marquardt.
 
         A frame without a starting point runs the default initial pose stages
-        with half the steps (80 instead of 160) and then
+        (160 Adam steps) and then
         SMPL_FAST_LM_ITERATIONS Levenberg-Marquardt (LM) steps on the vertex
         error, which is the objective the default path's final 300 Adam steps
         minimize. A frame with a starting point (initial_parameters, or the

@@ -203,9 +203,9 @@ Container for conversion results.
 ## Fast Fitting
 
 `convert_mhr2smpl(..., fast_fitting=True)` and
-`convert_sam3d_output_to_smpl(..., fast_fitting=True)` run half of the default
-initial pose steps (80 Adam steps), then 3 Levenberg-Marquardt (LM) steps on
-the vertex error instead of the final 300 Adam steps. Each LM step solves for
+`convert_sam3d_output_to_smpl(..., fast_fitting=True)` run the default initial
+pose steps (160 Adam steps), then 3 Levenberg-Marquardt (LM) steps on the
+vertex error instead of the final 300 Adam steps. Each LM step solves for
 all parameters of a frame at once from the full Jacobian of its vertices, so a
 few steps reach the error that Adam needs hundreds of steps for.
 
@@ -234,20 +234,30 @@ Time per frame for MHR → SMPL of the bundled SAM 3D Body samples on a CPU
 
 | Frames per call | Default | `fast_fitting=True` | `fast_fitting=True`, previous frame as start |
 |---:|---:|---:|---:|
-| 1 | 2.93 s | 0.59 s | 0.077 s |
-| 8 | 0.58 s | 0.19 s | 0.066 s |
-| 64 | 0.24 s | 0.13 s | 0.061 s |
+| 1 | 2.77 s | 1.00 s | 0.066 s |
+| 8 | 0.55 s | 0.27 s | 0.064 s |
+| 64 | 0.24 s | 0.15 s | 0.064 s |
 
 The fast path fits the MHR mesh slightly closer than the default path: the
 mean vertex distance to the MHR mesh is 0.91 cm instead of 0.97 cm for the
 bundled samples, and 0.87 cm instead of 0.92 cm for a 91-frame sequence made
-from them. Its meshes are 0.32 cm from the default path's on average (1.5 cm
-at most). Joint angles and shape coefficients differ more (about 10 degrees
-and 0.5 on average), mostly because the default path has not converged: a
-default fit with 2,700 instead of 300 final Adam steps moves toward the fast
-result (mean joint angle 7.7 degrees from the default fit and 2.1 from the
-fast fit). For SMPL-X with 1 frame per call, the time per frame drops from
-6.0 s to 1.5 s, or 0.30 s with the previous frame as start.
+from them. On 324 harder inputs (the samples with their poses perturbed by up
+to 0.6 rad, random poses within the joint limits, poses at the joint limits,
+and random body shapes up to 3 standard deviations), it is 1.30 cm instead of
+1.38 cm, and no input is fitted more than 0.1 cm worse than by the default
+path. Its meshes are 0.48 cm from the default path's on average on these
+inputs. Joint angles and shape coefficients differ more (about 11 degrees and
+0.8 on average), mostly because the default path has not converged: against a
+default fit with 2,700 instead of 300 final Adam steps, the joint angles of the
+default path are 9.4 degrees off on average and those of the fast path 3.1
+degrees (meshes 0.46 cm and 0.10 cm). For SMPL-X with 1 frame per call, the
+time per frame drops from 5.6 s to 2.3 s, or 0.30 s with the previous frame
+as start.
+
+On a GPU (NVIDIA A100, 80 GB), the fast path is faster than the default path
+for SMPL at 1 to 256 frames per call. For SMPL-X with 256 frames per call it is
+slower (0.078 s instead of 0.065 s per frame), and it needs about 3 GB of GPU
+memory instead of 0.9 GB.
 
 ## Optimization Methods
 
@@ -307,7 +317,7 @@ MHR → SMPL of the bundled SAM 3D Body samples on a CPU (AMD EPYC Genoa,
   `fast_fitting=True` replaces the final 300 Adam steps with a few
   Levenberg-Marquardt steps, and `initial_smpl_parameters` starts each frame
   from the previous one. With 1 frame per call on this CPU, the time per frame
-  drops from 2.93 s to 0.59 s, or 0.077 s from the previous frame, at a
+  drops from 2.77 s to 1.00 s, or 0.066 s from the previous frame, at a
   slightly lower fit error; see [Fast Fitting](#fast-fitting). Without
   `fast_fitting`, `is_tracking=True` changes the fitting only for more than
   16 × `batch_size` frames (4,096 by default): those frames start from the

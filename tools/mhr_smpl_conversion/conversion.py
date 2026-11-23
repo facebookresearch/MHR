@@ -357,8 +357,8 @@ class Conversion:
             return_smpl_vertices: Whether to return the SMPL(X) vertices. If True, the function will return a numpy array of SMPL(X) vertices.
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for each frame.
             batch_size: Number of frames to process in each batch.
-            fast_fitting: Whether to fit with the fast path: half of the default initial pose steps,
-                then Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
+            fast_fitting: Whether to fit with the fast path: the default initial pose steps, then
+                Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
                 steps. Frames with a starting point (initial_smpl_parameters, or the previous frame
                 when is_tracking=True) run only a few Levenberg-Marquardt steps. Results differ
                 slightly from the default path; the README lists the measured speed and error.
@@ -451,8 +451,8 @@ class Conversion:
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for
                                    each frame.
             batch_size: Number of frames to process in each batch.
-            fast_fitting: Whether to fit with the fast path: half of the default initial pose steps,
-                then Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
+            fast_fitting: Whether to fit with the fast path: the default initial pose steps, then
+                Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
                 steps. People with a starting point (initial_smpl_parameters) run only a few
                 Levenberg-Marquardt steps. Results differ slightly from the default path; the README
                 lists the measured speed and error. The default, False, keeps the results unchanged.
