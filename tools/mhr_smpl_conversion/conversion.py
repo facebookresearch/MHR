@@ -362,7 +362,9 @@ class Conversion:
                 steps. Frames with a starting point (initial_smpl_parameters, or the previous frame
                 when is_tracking=True) run only a few Levenberg-Marquardt steps. Results differ
                 slightly from the default path; the README lists the measured speed and error.
-                Requires single_identity=False. The default, False, keeps the results unchanged.
+                With single_identity=True, the frames are fitted one by one first and then
+                together with one shared body shape. The default, False, keeps the results
+                unchanged.
             initial_smpl_parameters: Only with fast_fitting=True. SMPL(X) parameters to start from,
                 for example result_parameters of the previous video frame. Each value has one row
                 per frame or a single row for all frames.

@@ -351,12 +351,83 @@ def test_a_poor_starting_point_is_fitted_again(monkeypatch):
     assert torch.all(_mean_error(model, result, target) < 0.01)
 
 
+def _one_person(num_frames: int, seed: int, scale: float = 0.3):
+    """Parameters of one person (one shape) in num_frames different poses."""
+    parameters = _random_parameters(num_frames, seed=seed, scale=scale)
+    parameters["betas"] = parameters["betas"][:1].expand(num_frames, -1).clone()
+    return parameters
+
+
+def test_fast_fit_with_a_single_identity_fits_one_shape():
+    model = _ToyBodyModel()
+    fitter = _fitter(model)
+    truth = _one_person(6, seed=8)
+    target = _vertices(model, truth)
+
+    result = fitter.fit(
+        target.clone(), single_identity=True, is_tracking=False, fast=True
+    )
+
+    assert torch.equal(result["betas"], result["betas"][:1].expand(6, -1))
+    assert torch.allclose(result["betas"][0], truth["betas"][0], atol=1e-2)
+    assert torch.all(_mean_error(model, result, target) < 1e-3)
+
+
+def test_fast_tracking_with_a_single_identity_fits_one_shape():
+    model = _ToyBodyModel()
+    fitter = _fitter(model)
+    first = _one_person(1, seed=9)
+    steps = torch.arange(5, dtype=torch.float32)[:, None]
+    truth = {name: value + 0.04 * steps for name, value in first.items()}
+    truth["betas"] = first["betas"].expand(5, -1)
+    truth["transl"] = first["transl"] + 0.5 * steps
+    target = _vertices(model, truth)
+
+    result = fitter.fit(
+        target.clone(), single_identity=True, is_tracking=True, fast=True
+    )
+
+    assert torch.equal(result["betas"], result["betas"][:1].expand(5, -1))
+    assert torch.all(_mean_error(model, result, target) < 1e-3)
+
+
+def test_shared_identity_refinement_lowers_the_error_of_the_mean_shape(
+    monkeypatch,
+):
+    model = _ToyBodyModel()
+    fitter = _fitter(model)
+    truth = _one_person(6, seed=10)
+    target = _vertices(model, truth)
+    # Per-frame fits, each with its own shape, as the fast path makes them.
+    per_frame = fitter.fit(
+        target.clone(), single_identity=False, is_tracking=False, fast=True
+    )
+    per_frame = {name: value + 0.02 for name, value in per_frame.items()}
+    per_frame["transl"] = per_frame["transl"] - 0.5 * (
+        target.min(1)[0] + target.max(1)[0]
+    )
+    centered = target - 0.5 * (target.min(1)[0] + target.max(1)[0])[:, None, :]
+
+    def total_error(parameters):
+        return _mean_error(model, parameters, centered).sum()
+
+    monkeypatch.setattr(
+        pytorch_fitting.OptimizationConstants,
+        "SMPL_FAST_SHARED_IDENTITY_LM_ITERATIONS",
+        0,
+    )
+    mean_shape = fitter._refine_shared_identity(centered, per_frame)
+    monkeypatch.undo()
+    refined = fitter._refine_shared_identity(centered, per_frame)
+
+    assert torch.equal(refined["betas"], refined["betas"][:1].expand(6, -1))
+    assert total_error(refined) < 0.5 * total_error(mean_shape)
+
+
 def test_fast_fit_rejects_unsupported_options():
     fitter = _fitter(_ToyBodyModel())
     target = torch.zeros(2, _NUM_VERTICES, 3)
 
-    with pytest.raises(ValueError, match="single_identity=False"):
-        fitter.fit(target.clone(), single_identity=True, is_tracking=False, fast=True)
     with pytest.raises(ValueError, match="requires fast=True"):
         fitter.fit(
             target.clone(),

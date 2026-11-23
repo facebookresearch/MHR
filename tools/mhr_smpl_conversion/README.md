@@ -183,7 +183,7 @@ Convert MHR data to SMPL/SMPLX format.
 - `return_smpl_meshes` (bool): Return mesh objects (default: False)
 - `return_smpl_parameters` (bool): Return parameter dictionary (default: False)
 - `return_smpl_vertices` (bool): Return vertex arrays (default: False)
-- `fast_fitting` (bool): Fit with the fast path, see [Fast Fitting](#fast-fitting) (default: False)
+- `fast_fitting` (bool): Fit with the fast path, with `single_identity` True or False, see [Fast Fitting](#fast-fitting) (default: False)
 - `initial_smpl_parameters` (dict, optional): SMPL(X) parameters to start from, for example the previous video frame's `result_parameters`; only with `fast_fitting=True`
 
 **Returns:**
@@ -226,8 +226,22 @@ for people in video:  # SAM 3D Body outputs of one frame, the same people in the
 ```
 
 `convert_mhr2smpl(..., fast_fitting=True, is_tracking=True)` does the same
-for the frames of one sequence within a call. The fast path needs
-`single_identity=False`.
+for the frames of one sequence within a call.
+
+With `single_identity=True`, the fast path first fits each frame as above, then
+fits one body shape for all frames: it starts from the mean of the per-frame
+shapes and runs 3 LM steps on all frames together, over the pose of every frame
+and the shared shape. For MHR → SMPL of one person on a CPU, one call per set:
+
+| Frames of one person | Default | `fast_fitting=True` |
+|---|---:|---:|
+| 46-frame sequences, `is_tracking=True` (8) | 16.3 to 17.6 s | 8.5 to 9.4 s |
+| 30 independent frames (4) | 8.5 to 9.8 s | 8.5 to 8.7 s |
+| Mesh distance to a default fit with 2,700 final Adam steps | 0.27 to 0.50 cm | 0.05 to 0.10 cm |
+
+The mean and the largest fit error of every set are lower than with the default
+path. With 16 independent frames of SMPL-X, the fast path took 19 s instead of
+14 s, with a mean fit error of 0.89 cm instead of 0.99 cm.
 
 Time per frame for MHR → SMPL of the bundled SAM 3D Body samples on a CPU
 (AMD EPYC Genoa, 16 PyTorch threads):

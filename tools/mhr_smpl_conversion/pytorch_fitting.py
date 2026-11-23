@@ -120,6 +120,9 @@ class OptimizationConstants:
     SMPL_FAST_LM_DAMPING_DECREASE = 0.3
     SMPL_FAST_LM_DAMPING_INCREASE = 10.0
     SMPL_FAST_LM_MAX_DAMPING_TRIALS = 5
+    # With single_identity=True, LM steps on all frames together with one
+    # shared body shape, after the fit of each frame.
+    SMPL_FAST_SHARED_IDENTITY_LM_ITERATIONS = 3
 
 
 class OptimizationStage(NamedTuple):
@@ -1255,7 +1258,9 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                 With fast=True, each frame starts from the previous frame's result.
             known_parameters: Dictionary of known parameters to keep constant
             fast: Use the fast fitting path (see _fit_fast). Results differ
-                slightly from the default path. Requires single_identity=False.
+                slightly from the default path. With single_identity=True, the
+                frames are fitted one by one first and then together with one
+                shared body shape (see _refine_shared_identity).
             initial_parameters: Only with fast=True. SMPL(X) parameters to start
                 from, for example the result for the previous video frame, as
                 returned by this method. Each value has one row per frame or a
@@ -1264,11 +1269,6 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         Returns:
             Dictionary containing fitted SMPL parameters
         """
-        if fast and single_identity:
-            raise ValueError(
-                "Fast fitting estimates the body shape of each frame; "
-                "use single_identity=False."
-            )
         if initial_parameters is not None and not fast:
             raise ValueError("initial_parameters requires fast=True.")
         num_frames = target_vertices.shape[0]
@@ -1280,7 +1280,7 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         if known_parameters is None:
             known_parameters = {}
 
-        if single_identity and is_tracking:
+        if single_identity and is_tracking and not fast:
             logger.info("Select frames to estimate body shape...")
             selected_frame_indices = self._select_frames_for_identity_estimation(
                 target_vertices
@@ -1308,6 +1308,9 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                 is_tracking,
                 initial_parameters,
             )
+            if single_identity:
+                logger.info("Fit one body shape for all frames...")
+                variables = self._refine_shared_identity(target_vertices, variables)
         elif is_tracking and target_vertices.shape[0] > 16 * self._batch_size:
             logger.info("Optimize parameters for each frame by tracking...")
             variables = self._track_smpl(
@@ -1652,6 +1655,138 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
             for name in variables:
                 variables[name][indices] = refit[name][better]
         return variables
+
+    def _refine_shared_identity(
+        self,
+        target_vertices: torch.Tensor,
+        variables: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        """Fit one body shape (betas) for all frames, from per-frame fits.
+
+        The shape starts as the mean of the per-frame shapes, weighted by the
+        inverse of each frame's error as in the default tracking path. Then
+        SMPL_FAST_SHARED_IDENTITY_LM_ITERATIONS Levenberg-Marquardt steps
+        minimize the summed squared vertex error of all frames over the pose of
+        each frame and the shared shape together. The shape couples the
+        frames, so each step solves the normal equations through the Schur
+        complement on the shape: one small system for the shape, then one
+        system per frame. A step is taken only if it lowers the total error.
+
+        Args:
+            target_vertices: Target vertices [B, V, 3]
+            variables: Per-frame parameters, one row per frame
+
+        Returns:
+            The parameters, with the same shared betas in every row
+        """
+        constants = OptimizationConstants
+        names = [name for name in variables if name != "betas"]
+        sizes = [variables[name].shape[1] for name in names]
+        num_frames = target_vertices.shape[0]
+        with torch.no_grad():
+            errors = self._mean_vertex_errors(target_vertices, variables)
+            weights = errors.max() / errors
+            weights = weights / weights.sum()
+            betas = (weights[:, None] * variables["betas"].to(self._device)).sum(
+                0, keepdim=True
+            )
+        x = torch.cat([variables[name].detach().to(self._device) for name in names], 1)
+        num_betas = betas.shape[1]
+        target = target_vertices.reshape(num_frames, -1)
+        chunk_size = constants.SMPL_FAST_LM_CHUNK_SIZE
+        from torch.func import jacfwd, vmap
+
+        def frame_vertices(frame_x: torch.Tensor) -> torch.Tensor:
+            parts = dict(
+                zip(
+                    names + ["betas"],
+                    torch.split(frame_x[None], sizes + [num_betas], 1),
+                )
+            )
+            parameters = self._get_batched_body_model_parameters(parts, 0, 1)
+            return self._smpl_model(**parameters).vertices.reshape(-1)
+
+        def chunks():
+            return range(0, num_frames, chunk_size)
+
+        def with_betas(x_chunk: torch.Tensor, shared: torch.Tensor) -> torch.Tensor:
+            return torch.cat([x_chunk, shared.expand(x_chunk.shape[0], -1)], 1)
+
+        def total_cost(x: torch.Tensor, shared: torch.Tensor) -> torch.Tensor:
+            return sum(
+                (
+                    vmap(frame_vertices)(with_betas(x[a : a + chunk_size], shared))
+                    - target[a : a + chunk_size]
+                )
+                .double()
+                .square()
+                .sum()
+                for a in chunks()
+            )
+
+        with torch.no_grad():
+            cost = total_cost(x, betas)
+            damping = constants.SMPL_FAST_LM_INITIAL_DAMPING
+            for _ in range(constants.SMPL_FAST_SHARED_IDENTITY_LM_ITERATIONS):
+                # Normal equation blocks: pose-pose per frame (A), pose-shape
+                # per frame (B), shape-shape summed (C), and the gradients.
+                blocks = {"A": [], "B": [], "C": 0, "gp": [], "gb": 0}
+                for a in chunks():
+                    xb = with_betas(x[a : a + chunk_size], betas)
+                    jacobian = vmap(jacfwd(frame_vertices))(xb).double()
+                    residual = (
+                        vmap(frame_vertices)(xb) - target[a : a + chunk_size]
+                    ).double()
+                    jp, jb = jacobian[..., :-num_betas], jacobian[..., -num_betas:]
+                    blocks["A"].append(jp.transpose(1, 2) @ jp)
+                    blocks["B"].append(jp.transpose(1, 2) @ jb)
+                    blocks["C"] = blocks["C"] + (jb.transpose(1, 2) @ jb).sum(0)
+                    blocks["gp"].append(
+                        (jp.transpose(1, 2) @ residual[..., None])[..., 0]
+                    )
+                    blocks["gb"] = blocks["gb"] + (
+                        jb.transpose(1, 2) @ residual[..., None]
+                    )[..., 0].sum(0)
+                pose_pose, pose_shape = torch.cat(blocks["A"]), torch.cat(blocks["B"])
+                pose_gradient = torch.cat(blocks["gp"])
+                for _ in range(constants.SMPL_FAST_LM_MAX_DAMPING_TRIALS):
+                    damped = pose_pose + torch.diag_embed(
+                        damping * (torch.diagonal(pose_pose, dim1=1, dim2=2) + 1e-6)
+                    )
+                    shape_shape = blocks["C"] + torch.diag(
+                        damping * (torch.diagonal(blocks["C"]) + 1e-6)
+                    )
+                    factor, info = torch.linalg.cholesky_ex(damped)
+                    if bool((info != 0).any()):
+                        damping *= constants.SMPL_FAST_LM_DAMPING_INCREASE
+                        continue
+                    a_inv_b = torch.cholesky_solve(pose_shape, factor)
+                    a_inv_g = torch.cholesky_solve(pose_gradient[..., None], factor)[
+                        ..., 0
+                    ]
+                    schur = shape_shape - (pose_shape.transpose(1, 2) @ a_inv_b).sum(0)
+                    rhs = blocks["gb"] - (
+                        pose_shape.transpose(1, 2) @ a_inv_g[..., None]
+                    )[..., 0].sum(0)
+                    shape_factor, shape_info = torch.linalg.cholesky_ex(schur)
+                    if int(shape_info) != 0:
+                        damping *= constants.SMPL_FAST_LM_DAMPING_INCREASE
+                        continue
+                    shape_step = -torch.cholesky_solve(rhs[:, None], shape_factor)[:, 0]
+                    pose_step = -(a_inv_g + (a_inv_b @ shape_step[:, None])[..., 0])
+                    trial_x = x + pose_step.to(x.dtype)
+                    trial_betas = betas + shape_step.to(betas.dtype)[None]
+                    trial_cost = total_cost(trial_x, trial_betas)
+                    if trial_cost < cost:
+                        x, betas, cost = trial_x, trial_betas, trial_cost
+                        damping *= constants.SMPL_FAST_LM_DAMPING_DECREASE
+                        break
+                    damping *= constants.SMPL_FAST_LM_DAMPING_INCREASE
+        result = {
+            name: value.clone() for name, value in zip(names, torch.split(x, sizes, 1))
+        }
+        result["betas"] = betas.expand(num_frames, -1).clone()
+        return result
 
     def _mean_vertex_errors(
         self, target_vertices: torch.Tensor, variables: dict[str, torch.Tensor]
