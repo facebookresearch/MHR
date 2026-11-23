@@ -302,7 +302,13 @@ MHR → SMPL of the bundled SAM 3D Body samples on a CPU (AMD EPYC Genoa,
   not help (2.8 to 3.2 s). Set the number with `torch.set_num_threads()`.
 - **GPU.** The converter uses CUDA when `torch.cuda.is_available()`. The
   numbers above are for the CPU only.
-- **No accuracy-for-speed setting.** The number of steps is fixed, and frames
-  per call, `batch_size` and threads change the speed only. `is_tracking=True`
-  changes the fitting only for more than 16 × `batch_size` frames (4,096 by
-  default): those frames start from the previous frame and run 134 steps.
+- **Fewer steps with `fast_fitting=True`.** By default the number of steps is
+  fixed, and frames per call, `batch_size` and threads change the speed only.
+  `fast_fitting=True` replaces the final 300 Adam steps with a few
+  Levenberg-Marquardt steps, and `initial_smpl_parameters` starts each frame
+  from the previous one. With 1 frame per call on this CPU, the time per frame
+  drops from 2.93 s to 0.59 s, or 0.077 s from the previous frame, at a
+  slightly lower fit error; see [Fast Fitting](#fast-fitting). Without
+  `fast_fitting`, `is_tracking=True` changes the fitting only for more than
+  16 × `batch_size` frames (4,096 by default): those frames start from the
+  previous frame and run 134 steps.
