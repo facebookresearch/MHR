@@ -270,3 +270,39 @@ fast fit). For SMPL-X with 1 frame per call, the time per frame drops from
 **Features:**
 - Edge + vertex loss combination
 - Batch processing
+
+## Speed of MHR → SMPL(X) Conversion
+
+`convert_mhr2smpl()` and `convert_sam3d_output_to_smpl()` fit with the
+PyTorch method: 160 Adam steps for the initial pose, then 300 for all
+parameters. A call runs all 460 steps on all of its frames at once, so the
+time per call grows slowly with the number of frames and the time per frame
+drops when one call converts many frames:
+
+| Frames per call | Time per call | Time per frame |
+|---:|---:|---:|
+| 1 | 3.2 s | 3.2 s |
+| 8 | 4.7 s | 0.59 s |
+| 64 | 15.5 s | 0.24 s |
+| 256 | 76.6 s | 0.30 s |
+
+MHR → SMPL of the bundled SAM 3D Body samples on a CPU (AMD EPYC Genoa,
+16 PyTorch threads, PyTorch 2.14).
+
+- **Convert many frames per call.** Pass the people of many images or the
+  frames of a whole video to one call instead of calling once per frame.
+  Calls with more than `batch_size` frames (default 256) run the steps batch
+  by batch. On this CPU, 64 frames per call gave the lowest time per frame.
+- **Frames per call do not change the accuracy.** The mean vertex fit error
+  of each sample stays within 0.02 cm (0.93 to 1.03 cm) from 1 to 256 frames
+  per call. The fitted mesh of a frame moves by up to 0.33 cm, because Adam's
+  steps depend on the loss averaged over the frames of the call.
+- **CPU threads.** With 64 frames per call, 16 threads took 0.24 s per frame,
+  4 threads 0.49 s and 1 thread 1.07 s. With 1 frame per call more threads do
+  not help (2.8 to 3.2 s). Set the number with `torch.set_num_threads()`.
+- **GPU.** The converter uses CUDA when `torch.cuda.is_available()`. The
+  numbers above are for the CPU only.
+- **No accuracy-for-speed setting.** The number of steps is fixed, and frames
+  per call, `batch_size` and threads change the speed only. `is_tracking=True`
+  changes the fitting only for more than 16 × `batch_size` frames (4,096 by
+  default): those frames start from the previous frame and run 134 steps.
