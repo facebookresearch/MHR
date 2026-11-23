@@ -340,6 +340,8 @@ class Conversion:
         return_smpl_vertices: bool = False,
         return_fitting_errors: bool = True,
         batch_size: int = 256,
+        fast_fitting: bool = False,
+        initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> ConversionResult:
         """
         Convert MHR meshes or model parameters to SMPL(X) model parameters.
@@ -355,6 +357,15 @@ class Conversion:
             return_smpl_vertices: Whether to return the SMPL(X) vertices. If True, the function will return a numpy array of SMPL(X) vertices.
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for each frame.
             batch_size: Number of frames to process in each batch.
+            fast_fitting: Whether to fit with the fast path: half of the default initial pose steps,
+                then Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
+                steps. Frames with a starting point (initial_smpl_parameters, or the previous frame
+                when is_tracking=True) run only a few Levenberg-Marquardt steps. Results differ
+                slightly from the default path; the README lists the measured speed and error.
+                Requires single_identity=False. The default, False, keeps the results unchanged.
+            initial_smpl_parameters: Only with fast_fitting=True. SMPL(X) parameters to start from,
+                for example result_parameters of the previous video frame. Each value has one row
+                per frame or a single row for all frames.
 
         Returns:
             ConversionResult containing:
@@ -383,6 +394,8 @@ class Conversion:
                 target_vertices,
                 single_identity,
                 is_tracking,
+                fast_fitting=fast_fitting,
+                initial_smpl_parameters=initial_smpl_parameters,
             )
             errors = self._m2s_evaluate_conversion_error(
                 fitting_parameter_results, target_vertices
@@ -416,6 +429,8 @@ class Conversion:
         return_smpl_vertices: bool = False,
         return_fitting_errors: bool = True,
         batch_size: int = 256,
+        fast_fitting: bool = False,
+        initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> ConversionResult:
         """
         Convert SAM3D output to SMPL model parameters.
@@ -436,6 +451,14 @@ class Conversion:
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for
                                    each frame.
             batch_size: Number of frames to process in each batch.
+            fast_fitting: Whether to fit with the fast path: half of the default initial pose steps,
+                then Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
+                steps. People with a starting point (initial_smpl_parameters) run only a few
+                Levenberg-Marquardt steps. Results differ slightly from the default path; the README
+                lists the measured speed and error. The default, False, keeps the results unchanged.
+            initial_smpl_parameters: Only with fast_fitting=True. SMPL parameters to start from, for
+                example result_parameters of the previous video frame, with the same people in the
+                same order. Each value has one row per person or a single row for all people.
 
         Returns:
             ConversionResult containing:
@@ -525,6 +548,8 @@ class Conversion:
             return_smpl_vertices=return_smpl_vertices,
             return_fitting_errors=return_fitting_errors,
             batch_size=batch_size,
+            fast_fitting=fast_fitting,
+            initial_smpl_parameters=initial_smpl_parameters,
         )
         return conversion_results
 
@@ -962,6 +987,8 @@ class Conversion:
         target_vertices: torch.Tensor,
         single_identity: bool,
         is_tracking: bool,
+        fast_fitting: bool = False,
+        initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Fit SMPL model to target vertices using PyTorch optimizer.
@@ -970,6 +997,8 @@ class Conversion:
             target_vertices: Target vertices in SMPL mesh topology for each frame
             single_identity: Whether to use a single identity (betas) for all frames
             is_tracking: Whether to use tracking information to initialize fitting parameters
+            fast_fitting: Whether to use the fast fitting path
+            initial_smpl_parameters: Parameters to start from, only with fast_fitting=True
 
         Returns:
             Dictionary containing fitted SMPL parameters
@@ -987,6 +1016,8 @@ class Conversion:
             target_vertices=target_vertices,
             single_identity=single_identity,
             is_tracking=is_tracking,
+            fast=fast_fitting,
+            initial_parameters=initial_smpl_parameters,
         )
 
     def _load_surface_mapping(self, direction: str) -> tuple[np.ndarray, np.ndarray]:

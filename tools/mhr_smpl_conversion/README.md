@@ -183,6 +183,8 @@ Convert MHR data to SMPL/SMPLX format.
 - `return_smpl_meshes` (bool): Return mesh objects (default: False)
 - `return_smpl_parameters` (bool): Return parameter dictionary (default: False)
 - `return_smpl_vertices` (bool): Return vertex arrays (default: False)
+- `fast_fitting` (bool): Fit with the fast path, see [Fast Fitting](#fast-fitting) (default: False)
+- `initial_smpl_parameters` (dict, optional): SMPL(X) parameters to start from, for example the previous video frame's `result_parameters`; only with `fast_fitting=True`
 
 **Returns:**
 - `ConversionResult`: Object containing requested outputs
@@ -197,6 +199,55 @@ Container for conversion results.
 - `result_parameters` (dict): Model parameter dictionary
 - `result_errors` (np.ndarray): Per-frame fitting errors
 
+
+## Fast Fitting
+
+`convert_mhr2smpl(..., fast_fitting=True)` and
+`convert_sam3d_output_to_smpl(..., fast_fitting=True)` run half of the default
+initial pose steps (80 Adam steps), then 3 Levenberg-Marquardt (LM) steps on
+the vertex error instead of the final 300 Adam steps. Each LM step solves for
+all parameters of a frame at once from the full Jacobian of its vertices, so a
+few steps reach the error that Adam needs hundreds of steps for.
+
+For video, start each frame from the previous one. Frames with a starting
+point skip the Adam steps and run 2 LM steps. A frame whose fit error stays
+above 1.5 cm from its start, for example after a cut, is fitted again without
+it.
+
+```python
+previous = None
+for people in video:  # SAM 3D Body outputs of one frame, the same people in the same order
+    result = converter.convert_sam3d_output_to_smpl(
+        sam3d_outputs=people,
+        fast_fitting=True,
+        initial_smpl_parameters=None if previous is None else previous.result_parameters,
+    )
+    previous = result
+```
+
+`convert_mhr2smpl(..., fast_fitting=True, is_tracking=True)` does the same
+for the frames of one sequence within a call. The fast path needs
+`single_identity=False`.
+
+Time per frame for MHR → SMPL of the bundled SAM 3D Body samples on a CPU
+(AMD EPYC Genoa, 16 PyTorch threads):
+
+| Frames per call | Default | `fast_fitting=True` | `fast_fitting=True`, previous frame as start |
+|---:|---:|---:|---:|
+| 1 | 2.93 s | 0.59 s | 0.077 s |
+| 8 | 0.58 s | 0.19 s | 0.066 s |
+| 64 | 0.24 s | 0.13 s | 0.061 s |
+
+The fast path fits the MHR mesh slightly closer than the default path: the
+mean vertex distance to the MHR mesh is 0.91 cm instead of 0.97 cm for the
+bundled samples, and 0.87 cm instead of 0.92 cm for a 91-frame sequence made
+from them. Its meshes are 0.32 cm from the default path's on average (1.5 cm
+at most). Joint angles and shape coefficients differ more (about 10 degrees
+and 0.5 on average), mostly because the default path has not converged: a
+default fit with 2,700 instead of 300 final Adam steps moves toward the fast
+result (mean joint angle 7.7 degrees from the default fit and 2.1 from the
+fast fit). For SMPL-X with 1 frame per call, the time per frame drops from
+6.0 s to 1.5 s, or 0.30 s with the previous frame as start.
 
 ## Optimization Methods
 
