@@ -19,6 +19,7 @@ neither the licensed SMPL model files nor the smplx package.
 """
 
 import importlib.util
+import inspect
 import sys
 import types
 from pathlib import Path
@@ -228,6 +229,55 @@ def test_fast_fit_from_scratch_matches_the_targets():
     assert set(result) == {"betas", "body_pose", "global_orient", "transl"}
     assert result["body_pose"].shape == (2, _BODY_POSE_DIM)
     assert torch.all(_mean_error(model, result, target) < 0.01)
+
+
+def test_fast_fit_runs_the_default_initial_pose_stages(monkeypatch):
+    model = _ToyBodyModel()
+    fitter = _fitter(model)
+    target = _vertices(model, _random_parameters(2, seed=3, scale=0.1))
+    default_iterations = inspect.signature(fitter._optimize_smpl).parameters[
+        "iterations"
+    ].default
+    recorded = []
+    optimize_smpl = fitter._optimize_smpl
+
+    def recording_optimize_smpl(*args, **kwargs):
+        recorded.append(kwargs.get("iterations"))
+        return optimize_smpl(*args, **kwargs)
+
+    monkeypatch.setattr(fitter, "_optimize_smpl", recording_optimize_smpl)
+
+    fitter.fit(target.clone(), single_identity=False, is_tracking=False, fast=True)
+
+    # Fewer initial pose steps leave some large poses in a wrong pose.
+    assert recorded == [(default_iterations[0], 0)]
+
+
+def test_fast_fit_from_scratch_reaches_large_poses(monkeypatch):
+    model = _ToyBodyModel()
+    targets = [
+        _vertices(model, _random_parameters(16, seed=seed, scale=1.0))
+        for seed in range(8)
+    ]
+
+    def mean_error_of_fast_fits():
+        errors = []
+        for target in targets:
+            result = _fitter(model).fit(
+                target.clone(), single_identity=False, is_tracking=False, fast=True
+            )
+            errors.append(_mean_error(model, result, target))
+        return torch.cat(errors).mean()
+
+    error = mean_error_of_fast_fits()
+    # Half of the initial pose steps leave more of these large poses in a
+    # wrong pose: about 2.7 times the error on this stand-in model.
+    monkeypatch.setattr(
+        pytorch_fitting.OptimizationConstants,
+        "SMPL_FAST_COARSE_ITERATIONS",
+        (20, 40, 20),
+    )
+    assert error < 0.6 * mean_error_of_fast_fits()
 
 
 def test_fast_fit_starts_from_the_initial_parameters():
