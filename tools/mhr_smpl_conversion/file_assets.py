@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pathlib import Path
+
+# The asset files ship next to this module. Resolve them from here, not from
+# the current working directory, so the tool works from any directory.
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+
 # Part mask files
-HEAD_HAND_MASK_FILE = "./assets/head_hand_mask.npz"
-MHR_FACE_MASK_FILE = "./assets/mhr_face_mask.ply"
+HEAD_HAND_MASK_FILE = str(ASSETS_DIR / "head_hand_mask.npz")
+MHR_FACE_MASK_FILE = str(ASSETS_DIR / "mhr_face_mask.ply")
 
 # Subsampled mhr vertices
-SUBSAMPLED_VERTEX_INDICES_FILE = "./assets/subsampled_vertex_indices.npy"
+SUBSAMPLED_VERTEX_INDICES_FILE = str(ASSETS_DIR / "subsampled_vertex_indices.npy")
 
 # Model template mesh mapping files
-SMPL2MHR_MAPPING_FILE = "./assets/smpl2mhr_mapping.npz"
-SMPLX2MHR_MAPPING_FILE = "./assets/smplx2mhr_mapping.npz"
-MHR2SMPL_MAPPING_FILE = "./assets/mhr2smpl_mapping.npz"
-MHR2SMPLX_MAPPING_FILE = "./assets/mhr2smplx_mapping.npz"
+SMPL2MHR_MAPPING_FILE = str(ASSETS_DIR / "smpl2mhr_mapping.npz")
+SMPLX2MHR_MAPPING_FILE = str(ASSETS_DIR / "smplx2mhr_mapping.npz")
+MHR2SMPL_MAPPING_FILE = str(ASSETS_DIR / "mhr2smpl_mapping.npz")
+MHR2SMPLX_MAPPING_FILE = str(ASSETS_DIR / "mhr2smplx_mapping.npz")
