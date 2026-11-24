@@ -32,3 +32,12 @@ The included `.npz` files contain precomputed barycentric coordinates for conver
 Each mapping file contains:
 - `triangle_ids`: Triangle indices on the source mesh for each target vertex.
 - `baryc_coords`: Barycentric coordinates within those triangles.
+
+Each target vertex maps to the closest point on the LOD 1 rest mesh. In the
+rest pose, every mapped vertex lies within 0.22 cm of its LOD N position.
+`compute_mapping.py` recomputes the files from the release assets:
+
+```bash
+python compute_mapping.py --target-lod 0 --target-lod 2 --target-lod 3 \
+    --target-lod 4 --target-lod 5 --target-lod 6
+```
