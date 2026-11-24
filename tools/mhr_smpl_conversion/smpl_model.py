@@ -42,6 +42,8 @@ BLENDSHAPE_LAYOUTS = ("vertex_major", "coordinate_major")
 MIN_LAYOUT_ROUGHNESS_RATIO = 2.0
 
 _NUM_SMPL_VERTICES = 6890
+_NUM_SMPLX_VERTICES = 10475
+_SMPLX_HAND_KEYS = ("hands_componentsl", "hands_componentsr")
 _NUM_SMPL_POSE_BLENDSHAPES = 207
 _REQUIRED_SMPL_KEYS = {
     "J_regressor",
@@ -267,3 +269,63 @@ def load_smpl_model(
             "loaded in the supported Python environments. Use an SMPL .npz "
             "model file instead."
         ) from error
+
+
+def load_smplx_model(model_path: str | Path, **kwargs: Any) -> Any:
+    """Load an SMPL-X ``.npz`` or ``.pkl`` model file with ``smplx.SMPLX``.
+
+    The file is checked first: an SMPL file passed by mistake raises a
+    ``ValueError`` that names the problem, instead of an error from inside
+    ``smplx`` such as ``'Struct' object has no attribute 'hands_componentsl'``.
+    The file extension selects how ``smplx`` reads the file. ``kwargs`` are
+    forwarded to ``smplx.SMPLX``.
+    """
+
+    model_path = Path(model_path)
+    if not model_path.is_file():
+        raise FileNotFoundError(f"SMPL-X model file not found: {model_path}")
+
+    suffix = model_path.suffix.lower()
+    if suffix == ".npz":
+        with np.load(model_path, allow_pickle=True) as model_archive:
+            keys = set(model_archive.files)
+            v_template_shape = (
+                model_archive["v_template"].shape if "v_template" in keys else None
+            )
+    elif suffix == ".pkl":
+        import pickle
+
+        try:
+            with open(model_path, "rb") as model_file:
+                model_data = pickle.load(model_file, encoding="latin1")
+        except ModuleNotFoundError as error:
+            if error.name is None or error.name.split(".")[0] != "chumpy":
+                raise
+            raise RuntimeError(
+                "This SMPL-X .pkl file contains Chumpy objects, which cannot be "
+                "loaded in the supported Python environments. Use an SMPL-X "
+                ".npz model file instead."
+            ) from error
+        keys = set(model_data)
+        v_template_shape = (
+            np.shape(model_data["v_template"]) if "v_template" in keys else None
+        )
+    else:
+        raise ValueError(
+            f"Unsupported SMPL-X model extension '{model_path.suffix}'. "
+            "Expected a .npz or .pkl file."
+        )
+
+    missing_keys = [key for key in _SMPLX_HAND_KEYS if key not in keys]
+    if missing_keys or v_template_shape != (_NUM_SMPLX_VERTICES, 3):
+        raise ValueError(
+            f"{model_path} is not an SMPL-X model file: its v_template has shape "
+            f"{v_template_shape} instead of ({_NUM_SMPLX_VERTICES}, 3)"
+            + (f" and it has no {', '.join(missing_keys)}" if missing_keys else "")
+            + ". Use an SMPL-X model file such as SMPLX_NEUTRAL.npz; SMPL files "
+            "load with load_smpl_model."
+        )
+
+    from smplx import SMPLX
+
+    return SMPLX(model_path=str(model_path), ext=suffix[1:], **kwargs)
