@@ -504,3 +504,33 @@ def test_sam3d_conversion_passes_the_fast_options_on(monkeypatch):
     assert recorded["fast_fitting"] is True
     assert recorded["initial_smpl_parameters"] is start
     assert recorded["mhr_vertices"].shape == (2, 5, 3)
+
+
+def test_sam3d_vertices_in_meters_are_fitted_in_centimeters(monkeypatch):
+    # SAM 3D Body returns meters and a camera translation; the SMPL fit runs in
+    # centimeters on the camera-space mesh.
+    converter = object.__new__(conversion.Conversion)
+    converter._DEVICE = "cpu"
+    recorded = {}
+    monkeypatch.setattr(
+        converter, "convert_mhr2smpl", lambda **kwargs: recorded.update(kwargs)
+    )
+    vertices = np.array([[0.1, 1.5, -0.2], [-0.3, 0.0, 0.05]], np.float32)
+    cam_t = np.array([0.01, -0.02, 3.0], np.float32)
+
+    converter.convert_sam3d_output_to_smpl(
+        [
+            {
+                "mhr_model_params": np.zeros(204, np.float32),
+                "shape_params": np.zeros(45, np.float32),
+                "expr_params": np.zeros(72, np.float32),
+                "pred_vertices": vertices,
+                "pred_cam_t": cam_t,
+            }
+        ]
+    )
+
+    np.testing.assert_allclose(
+        recorded["mhr_vertices"].numpy(), 100.0 * (vertices + cam_t)[None], rtol=1e-6
+    )
+
