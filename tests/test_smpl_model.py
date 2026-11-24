@@ -15,6 +15,9 @@
 """Tests for the SMPL model loader of the SMPL-MHR conversion tool."""
 
 import importlib.util
+import pickle
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -306,3 +309,60 @@ def test_reject_nonstandard_smpl_topology() -> None:
 
     with pytest.raises(ValueError, match="6890 vertices"):
         smpl_model._normalize_smpl_model_data(model_data)
+
+
+def _smplx_like_data(num_vertices: int, with_hands: bool) -> dict:
+    data = {"v_template": np.zeros((num_vertices, 3)), "f": np.zeros((1, 3), int)}
+    if with_hands:
+        data["hands_componentsl"] = np.zeros((45, 45))
+        data["hands_componentsr"] = np.zeros((45, 45))
+    return data
+
+
+def _write_model(path: Path, data: dict) -> Path:
+    if path.suffix == ".npz":
+        np.savez(path, **data)
+    else:
+        with open(path, "wb") as model_file:
+            pickle.dump(data, model_file)
+    return path
+
+
+@pytest.mark.parametrize("suffix", [".npz", ".pkl"])
+def test_smpl_file_given_as_smplx_model_is_rejected(tmp_path: Path, suffix) -> None:
+    # An SMPL model has 6890 vertices and no hand pose components.
+    path = _write_model(
+        tmp_path / f"SMPL_NEUTRAL{suffix}", _smplx_like_data(6890, with_hands=False)
+    )
+
+    with pytest.raises(ValueError, match="is not an SMPL-X model file") as error:
+        smpl_model.load_smplx_model(path)
+    assert "(6890, 3)" in str(error.value)
+    assert "hands_componentsl" in str(error.value)
+
+
+@pytest.mark.parametrize("suffix", [".npz", ".pkl"])
+def test_smplx_model_is_read_with_its_file_format(
+    tmp_path: Path, monkeypatch, suffix
+) -> None:
+    calls = []
+    fake_smplx = types.ModuleType("smplx")
+    fake_smplx.SMPLX = lambda **kwargs: calls.append(kwargs) or "model"
+    monkeypatch.setitem(sys.modules, "smplx", fake_smplx)
+    path = _write_model(
+        tmp_path / f"SMPLX_NEUTRAL{suffix}", _smplx_like_data(10475, with_hands=True)
+    )
+
+    model = smpl_model.load_smplx_model(path, gender="neutral")
+
+    assert model == "model"
+    assert calls == [{"model_path": str(path), "ext": suffix[1:], "gender": "neutral"}]
+
+
+def test_missing_or_unsupported_smplx_file_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        smpl_model.load_smplx_model(tmp_path / "missing.npz")
+    obj = tmp_path / "model.obj"
+    obj.write_text("")
+    with pytest.raises(ValueError, match="Unsupported SMPL-X model extension"):
+        smpl_model.load_smplx_model(obj)

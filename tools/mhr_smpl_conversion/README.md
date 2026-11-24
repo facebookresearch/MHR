@@ -70,6 +70,10 @@ accepts:
 `.pkl` files that contain Chumpy objects cannot be loaded in the supported
 Python 3.12/3.13 environments; use an `.npz` file instead.
 
+It loads the SMPL-X model with `smpl_model.load_smplx_model`, which accepts
+SMPL-X `.npz` files and Chumpy-free `.pkl` files, and stops with an error that
+says so when the file is not an SMPL-X model (for example an SMPL file).
+
 ## Quick Start
 
 ### Run Examples

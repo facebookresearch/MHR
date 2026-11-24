@@ -21,13 +21,12 @@ import argparse
 import os
 
 import numpy as np
-import smplx
 
 import torch
 import trimesh
 from mhr.mhr import MHR
 from conversion import Conversion
-from smpl_model import BLENDSHAPE_LAYOUTS, load_smpl_model
+from smpl_model import BLENDSHAPE_LAYOUTS, load_smpl_model, load_smplx_model
 
 _INPUT_FILE = "./data/example_smplx_poses.npy"  # Directory to store input data
 _SAM3D_BODY_OUTPUT_DIR = (
@@ -56,8 +55,8 @@ class DEMO:
                 smpl_model_file, blendshape_layout=smpl_blendshape_layout
             )
         if smplx_model_file is not None:
-            self.smplx_model = smplx.SMPLX(
-                model_path=smplx_model_file,
+            self.smplx_model = load_smplx_model(
+                smplx_model_file,
                 gender="neutral",
                 use_pca=False,
                 flat_hand_mean=True,
@@ -347,7 +346,7 @@ def _parse_arguments():
         type=str,
         required=False,
         default="./data/SMPLX_NEUTRAL.npz",
-        help="Path to the SMPL-X model file. If not specified, SMPL-X related conversion will be skipped.",
+        help="Path to an SMPL-X .npz or Chumpy-free .pkl model file. If not specified, SMPL-X related conversion will be skipped.",
     )
 
     parser.add_argument(
