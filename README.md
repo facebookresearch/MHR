@@ -59,7 +59,7 @@ New to TorchScript model? In short it's a Graph mode of pytorch models. More det
 
 ### Option 3. Using pip
 
-> **Note:** CI installs MHR with pip and checks the model on Ubuntu 22.04 and 24.04, macOS 15 (Apple silicon), and Windows with Python 3.12 and 3.13, and on Rocky Linux 9 with Python 3.12, with `pymomentum-core` and `pymomentum-cpu`, and on Linux also with CPU-only and CUDA 13 PyTorch ([pip install workflow](https://github.com/facebookresearch/MHR/actions/workflows/pip.yml)). PyMomentum 0.1.114 and older from PyPI can crash with a segmentation fault in `MHR.from_files` on Linux ([#44](https://github.com/facebookresearch/MHR/issues/44)); `mhr[momentum]` requires a newer one. If you encounter issues, please use the recommended Pixi installation above.
+> **Note:** CI installs MHR with pip and checks the model on Ubuntu 22.04 and 24.04, macOS 15 (Apple silicon), and Windows with Python 3.12 and 3.13, and on Rocky Linux 9 with Python 3.12, with `pymomentum-core` and `pymomentum-cpu`, and on Linux also with CPU-only and CUDA 13 PyTorch ([pip install workflow](https://github.com/facebookresearch/MHR/actions/workflows/pip.yml)). PyMomentum 0.1.114 and older from PyPI can crash with a segmentation fault in `MHR.from_files` on Linux ([#44](https://github.com/facebookresearch/MHR/issues/44)); `mhr[momentum]` requires `pymomentum-core` 0.1.115 or newer. If you encounter issues, please use the recommended Pixi installation above.
 >
 > PyMomentum's PyPI wheels cover Python 3.12 and 3.13 only. On Python 3.14, use Pixi or conda-forge `pymomentum` until PyMomentum publishes 3.14 wheels.
 
@@ -96,7 +96,7 @@ mhr_model = MHR.from_files(device=torch.device("cpu"), lod=1)
 
 - Python >= 3.12 (CI tests 3.12, 3.13 and 3.14 with Pixi; pip needs Python 3.12 or 3.13, see Option 3)
 - PyTorch
-- pymomentum >= 0.1.89, for `mhr.mhr` and the tools (CI tests 0.1.114)
+- pymomentum >= 0.1.89, for `mhr.mhr` and the tools (CI tests 0.1.114 with Pixi); with pip, `pymomentum-core` >= 0.1.115
 - trimesh >= 4.8.3 (for additional tools only: mhr-smpl conversion, LOD conversion and segmentation)
 
 ## Quick Start
