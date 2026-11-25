@@ -105,7 +105,7 @@ class MHR(_model.MHR):
     @staticmethod
     def from_files(
         folder: str | os.PathLike | None = None,
-        device: torch.device = "cuda",
+        device: torch.device | str = "cuda",
         lod: LOD = 1,
         wants_pose_correctives: bool = True,
     ) -> "MHR":
@@ -116,6 +116,7 @@ class MHR(_model.MHR):
         Raises FileNotFoundError if an asset file is missing.
         """
 
+        device = torch.device(device)
         if folder is None:
             searched = get_asset_folder_candidates()
             folder = get_default_asset_folder()

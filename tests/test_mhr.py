@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import os
 import unittest
 
 import pymomentum.geometry as pym_geometry
@@ -198,6 +199,15 @@ class TestMHRModel(unittest.TestCase):
             self.assertIsNotNone(value.grad)
             self.assertTrue(torch.isfinite(value.grad).all())
             self.assertGreater(torch.count_nonzero(value.grad).item(), 0)
+
+    @unittest.skipUnless(
+        os.environ.get("MHR_TEST_ASSETS"), "set MHR_TEST_ASSETS to the asset folder"
+    )
+    def test_from_files_accepts_a_device_name(self):
+        """Test loading the assets with pose correctives on a device given by name."""
+
+        model = MHR.from_files(os.environ["MHR_TEST_ASSETS"], device="cpu", lod=1)
+        self.assertIsNotNone(model.pose_correctives_model)
 
 
 if __name__ == "__main__":
