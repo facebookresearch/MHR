@@ -19,9 +19,11 @@ classifiers = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0"]
-# For mhr.mhr and the tools. The floor matches the import-time check in
-# mhr/_pymomentum_version.py, which also guards conda installs.
-momentum = ["pymomentum-core>=0.1.89"]
+# For mhr.mhr and the tools. PyPI builds of PyMomentum before 0.1.115 crash
+# in MHR.from_files on Linux (#44). The import-time check in
+# mhr/_pymomentum_version.py keeps 0.1.89 for conda-forge builds, which do not
+# bundle libstdc++.
+momentum = ["pymomentum-core>=0.1.115"]
 
 [project.urls]
 Homepage = "https://github.com/facebookresearch/MHR"
