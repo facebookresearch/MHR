@@ -309,6 +309,26 @@ def evaluate_model_fitting_error(
     return errors.cpu().numpy()
 
 
+def get_smpl_num_frames(smpl_parameters: dict[str, torch.Tensor]) -> int:
+    """Get the number of frames from SMPL(X) parameters.
+
+    Each parameter has either one row per frame or a single row shared by all
+    frames, such as one ``betas`` row for a whole sequence.
+
+    Raises:
+        ValueError: If a parameter has neither one row nor one row per frame
+    """
+    num_frames = max((len(v) for v in smpl_parameters.values()), default=0)
+    mismatched = {
+        k: len(v) for k, v in smpl_parameters.items() if len(v) not in (1, num_frames)
+    }
+    if mismatched:
+        raise ValueError(
+            f"SMPL parameters must have 1 or {num_frames} rows, got {mismatched}."
+        )
+    return num_frames
+
+
 def _get_num_frames(parameters: dict[str, torch.Tensor], model_type: str) -> int:
     """Get the number of frames from parameter dictionary.
 
@@ -327,7 +347,7 @@ def _get_num_frames(parameters: dict[str, torch.Tensor], model_type: str) -> int
         else:
             raise ValueError("Cannot determine number of frames from MHR parameters")
     elif model_type == "smpl":
-        return len(parameters["betas"])
+        return get_smpl_num_frames(parameters)
     else:
         raise ValueError(f"Unsupported model_type: {model_type}")
 

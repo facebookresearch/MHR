@@ -197,6 +197,7 @@ class BasePyTorchFitting(ABC):
         subsampling_threshold = (
             OptimizationConstants.SUBSAMPLING_THRESHOLD_MULTIPLIER * num_selected_frames
         )
+        process_every_n_frames = 1
         if original_num_frames > subsampling_threshold:
             process_every_n_frames = (
                 original_num_frames
@@ -231,9 +232,12 @@ class BasePyTorchFitting(ABC):
             dist = torch.norm(source_edges - target_edge_vecs, dim=-1).mean(dim=1)
             errors[batch_start:batch_end] = dist
 
-        # Single CPU transfer at the end
+        # Single CPU transfer at the end. Scale subsampled positions back to
+        # frame indices of the full sequence.
         selected_frame_indices = (
-            torch.argsort(errors)[:num_selected_frames].cpu().numpy()
+            (torch.argsort(errors)[:num_selected_frames] * process_every_n_frames)
+            .cpu()
+            .numpy()
         )
 
         return selected_frame_indices
@@ -610,8 +614,8 @@ class PyTorchMHRFitting(BasePyTorchFitting):
             stage_iterations = [[20, 200], [20, 80, 80], [200]]
         if learning_rates is None:
             learning_rates = [[0.1, 0.01], [0.1, 0.1, 0.1], [0.01]]
-        if known_parameters is None:
-            known_parameters = {}
+        # Copy so the head results added below stay local to this call.
+        known_parameters = dict(known_parameters) if known_parameters else {}
 
         num_frames = target_vertices.shape[0]
 
@@ -1293,7 +1297,9 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
             )
 
             with torch.no_grad():
-                errors = self._evaluate_conversion_error(variables, target_vertices)
+                errors = self._evaluate_conversion_error(
+                    variables, target_vertices[selected_frame_indices]
+                )
                 frame_weights = self._to_tensor(errors.max() / errors)
                 frame_weights = frame_weights / frame_weights.sum()
                 known_parameters["betas"] = (
