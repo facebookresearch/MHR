@@ -120,13 +120,20 @@ class MHR(torch.nn.Module):
         """Load the converted assets (rig.npz and lod<N>.npz) from folder.
 
         If folder is None, this uses the first of
-        mhr.io.get_asset_folder_candidates() that contains rig.npz. Download
-        the converted assets with `mhr-download-assets --lod <N>`.
+        mhr.io.get_asset_folder_candidates() that contains both files.
+        Download the converted assets with `mhr-download-assets --lod <N>`.
         """
 
         if folder is None:
             searched = get_asset_folder_candidates()
-            folder = get_default_asset_folder(RIG_FILE_NAME)
+            for candidate in searched:
+                if (candidate / RIG_FILE_NAME).is_file() and Path(
+                    get_mhr_lod_path(candidate, lod)
+                ).is_file():
+                    folder = candidate
+                    break
+            else:
+                folder = get_default_asset_folder(RIG_FILE_NAME)
         else:
             folder = Path(folder)
             searched = [folder]
