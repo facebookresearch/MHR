@@ -86,6 +86,24 @@ def test_default_folder_is_the_first_with_converted_assets(
     assert model.faces.shape == (1, 3)
 
 
+def test_default_folder_contains_the_requested_lod(tmp_path: Path, monkeypatch) -> None:
+    from mhr import io as asset_io
+
+    monkeypatch.chdir(tmp_path)
+    package_assets = tmp_path / "package" / "assets"
+    monkeypatch.setattr(asset_io, "_package_asset_folder", lambda: package_assets)
+    monkeypatch.setenv(asset_io.ASSETS_DEST_ENV, "downloaded")
+    downloaded_assets = tmp_path / "downloaded" / "assets"
+    downloaded_assets.mkdir(parents=True)
+    rig_assets.write_assets(downloaded_assets, lod=1)
+
+    (tmp_path / "assets").mkdir()
+    rig_assets.write_assets(tmp_path / "assets", lod=2)
+
+    model = MHR.from_files(device="cpu", lod=2)
+    assert model.faces.shape == (1, 3)
+
+
 def test_model_moves_to_the_device(tmp_path: Path) -> None:
     rig_assets.write_assets(tmp_path)
     model = MHR.from_files(tmp_path, device="meta", lod=1)
