@@ -101,6 +101,7 @@ from utils import (
     evaluate_model_fitting_error,
     FittingMethod,
     get_batched_parameters,
+    get_smpl_num_frames,
     load_head_vertex_weights,
     load_subsampled_vertex_mask,
     load_surface_mapping,
@@ -275,6 +276,13 @@ class Conversion:
                 raise ValueError(
                     "smpl_parameters must be provided if smpl_vertices is None."
                 )
+            # Give shared single-row parameters (e.g. one `betas` row) one row
+            # per frame, so failure cases can be reprocessed frame by frame.
+            num_frames = get_smpl_num_frames(smpl_parameters)
+            smpl_parameters = {
+                k: v.expand(num_frames, *v.shape[1:])
+                for k, v in smpl_parameters.items()
+            }
             _, smpl_vertices = self._smpl_para2mesh(smpl_parameters, return_mesh=False)
             smpl_vertices = self._to_tensor(smpl_vertices)
 
@@ -1115,7 +1123,7 @@ class Conversion:
         faces = self._smpl_model.faces
         meshes = []
         smpl_vertices = []
-        num_samples = smpl_parameters["betas"].shape[0]
+        num_samples = get_smpl_num_frames(smpl_parameters)
 
         if verbose:
             logger.info("Converting SMPL parameters to meshes...")
@@ -1384,6 +1392,7 @@ class Conversion:
         subsampling_threshold = (
             ConversionConstants.SUBSAMPLING_MULTIPLIER * num_selected_frames
         )
+        process_every_n_frames = 1
         if original_num_frames > subsampling_threshold:
             process_every_n_frames = (
                 original_num_frames // ConversionConstants.SUBSAMPLING_MULTIPLIER
@@ -1414,7 +1423,10 @@ class Conversion:
             dist = torch.norm(source_edges - target_edges, dim=-1).mean(dim=1)
             errors[batch_start:batch_end] = dist.detach().cpu().numpy()
 
-        selected_frame_indices = np.argsort(errors)[:num_selected_frames]
+        # Scale subsampled positions back to frame indices of the full sequence.
+        selected_frame_indices = (
+            np.argsort(errors)[:num_selected_frames] * process_every_n_frames
+        )
 
         return selected_frame_indices
 
