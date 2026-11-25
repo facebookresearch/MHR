@@ -51,6 +51,12 @@ jobs:
             pymomentum: core
             torch: cpu
             torch-index: https://download.pytorch.org/whl/cpu
+          # CUDA 13 PyTorch (no GPU needed to load the model on the CPU).
+          - os: ubuntu-24.04
+            python-version: "3.12"
+            pymomentum: core
+            torch: cu132
+            torch-index: https://download.pytorch.org/whl/cu132
     defaults:
       run:
         shell: bash
@@ -86,39 +92,30 @@ jobs:
           python -m pip list
           python -m pip check
 
-      # The Linux PyMomentum wheels bundle a libstdc++ that clashes with the
-      # system copy. With pymomentum-cpu (PyTorch 2.8) or CPU-only PyTorch,
-      # MHR.from_files then crashes. Preload the bundled copy, as the README
-      # describes.
-      - name: Preload PyMomentum's libstdc++ (Linux, pymomentum-cpu or CPU-only PyTorch)
-        if: ${{ runner.os == 'Linux' && (matrix.pymomentum == 'cpu' || matrix.torch-index) }}
-        run: |
-          purelib=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-          set -- "$purelib"/pymomentum_*.libs/libstdc++*.so*
-          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-            echo "Expected one bundled libstdc++, found: $*"
-            exit 1
-          fi
-          echo "LD_PRELOAD=$1" | tee -a "$GITHUB_ENV"
-
       - name: Show the loaded libstdc++ copies (Linux)
         if: ${{ runner.os == 'Linux' }}
         run: |
           python -c "import torch, pymomentum.geometry; print(sorted({l.split()[-1] for l in open('/proc/self/maps') if 'libstdc++' in l}))"
 
-      - name: Import mhr.mhr from the installed package
+      - name: Import mhr.mhr from the installed package, after and before PyTorch
         working-directory: ${{ runner.temp }}
         run: |
-          python -X faulthandler -c '
+          # Both import orders: which copy of libstdc++ loads first depends on it.
+          for first in torch mhr.mhr; do
+            python -X faulthandler -c '
+          import importlib
           import sys
+
+          importlib.import_module(sys.argv[1])
           import mhr
           import mhr.mhr
           import torch
 
           print("mhr", mhr.__version__, mhr.__file__)
-          print("torch", torch.__version__)
+          print("torch", torch.__version__, "imported after", sys.argv[1])
           assert mhr.__file__.startswith(sys.prefix), "mhr is not imported from the venv"
-          '
+          ' "$first"
+          done
 
       - name: Run tests against the installed package
         # importlib mode keeps the checkout off sys.path, so `import mhr`
@@ -138,9 +135,22 @@ jobs:
           mhr-download-assets --release "$MHR_ASSETS_RELEASE" --dest "$RUNNER_TEMP/mhr-assets"
           rm "$RUNNER_TEMP/mhr-assets/assets.zip"
 
-      - name: Forward pass of the LOD 1 model against the TorchScript model
+      # The Linux crash in #44 happened here, in MHR.from_files, not at import.
+      - name: Forward pass of the LOD 1 model against the TorchScript model (PyTorch imported first)
         working-directory: ${{ runner.temp }}/mhr-assets
         run: python -X faulthandler "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"
+
+      - name: Forward pass of the LOD 1 model against the TorchScript model (mhr.mhr imported first)
+        working-directory: ${{ runner.temp }}/mhr-assets
+        run: |
+          python -X faulthandler -c '
+          import runpy
+          import sys
+
+          import mhr.mhr
+
+          runpy.run_path(sys.argv[1], run_name="__main__")
+          ' "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"
 
   # RHEL 9 and its rebuilds ship an older system libstdc++ (GCC 11) than the
   # Ubuntu runners.
@@ -190,34 +200,29 @@ jobs:
           python -m pip list
           python -m pip check
 
-      - name: Preload PyMomentum's libstdc++ (pymomentum-cpu or CPU-only PyTorch)
-        if: ${{ matrix.pymomentum == 'cpu' || matrix.torch-index }}
-        run: |
-          purelib=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-          set -- "$purelib"/pymomentum_*.libs/libstdc++*.so*
-          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
-            echo "Expected one bundled libstdc++, found: $*"
-            exit 1
-          fi
-          echo "LD_PRELOAD=$1" | tee -a "$GITHUB_ENV"
-
       - name: Show the loaded libstdc++ copies
         run: |
           python -c "import torch, pymomentum.geometry; print(sorted({l.split()[-1] for l in open('/proc/self/maps') if 'libstdc++' in l}))"
 
-      - name: Import mhr.mhr from the installed package
+      - name: Import mhr.mhr from the installed package, after and before PyTorch
         working-directory: ${{ runner.temp }}
         run: |
-          python -X faulthandler -c '
+          # Both import orders: which copy of libstdc++ loads first depends on it.
+          for first in torch mhr.mhr; do
+            python -X faulthandler -c '
+          import importlib
           import sys
+
+          importlib.import_module(sys.argv[1])
           import mhr
           import mhr.mhr
           import torch
 
           print("mhr", mhr.__version__, mhr.__file__)
-          print("torch", torch.__version__)
+          print("torch", torch.__version__, "imported after", sys.argv[1])
           assert mhr.__file__.startswith(sys.prefix), "mhr is not imported from the venv"
-          '
+          ' "$first"
+          done
 
       - name: Run tests against the installed package
         run: pytest tests -v --import-mode=importlib
@@ -235,6 +240,19 @@ jobs:
           mhr-download-assets --release "$MHR_ASSETS_RELEASE" --dest "$RUNNER_TEMP/mhr-assets"
           rm "$RUNNER_TEMP/mhr-assets/assets.zip"
 
-      - name: Forward pass of the LOD 1 model against the TorchScript model
+      # The Linux crash in #44 happened here, in MHR.from_files, not at import.
+      - name: Forward pass of the LOD 1 model against the TorchScript model (PyTorch imported first)
         working-directory: ${{ runner.temp }}/mhr-assets
         run: python -X faulthandler "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"
+
+      - name: Forward pass of the LOD 1 model against the TorchScript model (mhr.mhr imported first)
+        working-directory: ${{ runner.temp }}/mhr-assets
+        run: |
+          python -X faulthandler -c '
+          import runpy
+          import sys
+
+          import mhr.mhr
+
+          runpy.run_path(sys.argv[1], run_name="__main__")
+          ' "$GITHUB_WORKSPACE/.github/scripts/check_forward.py"

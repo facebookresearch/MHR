@@ -9060,7 +9060,7 @@ packages:
   requires_dist:
   - numpy
   - torch
-  - pymomentum-core>=0.1.89 ; extra == 'momentum'
+  - pymomentum-core>=0.1.115 ; extra == 'momentum'
   - pytest>=8.0 ; extra == 'test'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/01/ce/a9d20d1ce39fe3e46e46dcffd743cb6d04cccc71cd092bd47f273c033d8a/nh3-0.3.8-cp39-abi3-macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl
