@@ -154,7 +154,7 @@ Conversion(mhr_model, smpl_model, method="pytorch")
 ```
 
 **Parameters:**
-- `mhr_model` (MHR): MHR body model instance
+- `mhr_model` (MHR): LOD 1 MHR body model instance, e.g. `MHR.from_files(lod=1)`; other LODs raise a `ValueError`
 - `smpl_model` (smplx.SMPLX | smplx.SMPL): SMPL or SMPLX model instance
 - `method` (str): Optimization method ("pytorch" or "pymomentum")
 

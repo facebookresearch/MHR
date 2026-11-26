@@ -1418,10 +1418,10 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                 )
             else:
                 left_hand_pose_batch = torch.zeros(
-                    len(batch_indices), 6, device=self._device
+                    len(batch_indices), self._hand_pose_dim, device=self._device
                 )
                 right_hand_pose_batch = torch.zeros(
-                    len(batch_indices), 6, device=self._device
+                    len(batch_indices), self._hand_pose_dim, device=self._device
                 )
 
             # Generate additional SMPLX parameters if needed
@@ -2138,7 +2138,9 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                 batched_parameter_dict["reye_pose"] = torch.zeros(
                     [batch_size, 1, 3], device=self._device
                 )
-            hand_pose_dim = 6 if self._smpl_model.use_pca else 45
+            hand_pose_dim = (
+                self._smpl_model.num_pca_comps if self._smpl_model.use_pca else 45
+            )
             if "left_hand_pose" not in batched_parameter_dict:
                 batched_parameter_dict["left_hand_pose"] = torch.zeros(
                     [batch_size, hand_pose_dim], device=self._device

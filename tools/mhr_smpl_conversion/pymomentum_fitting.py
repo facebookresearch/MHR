@@ -155,34 +155,41 @@ class PyMomentumModelFitting:
 
         # Run optimization stages
         start_global_rigid_params = self._solved_parameters[:6].clone()
-        for stage in stages:
-            if verbose:
-                logger.info("Starting %s...", stage.info)
-            if stage.constant_parameter_mask is not None:
-                # Add the stage's constant parameters to the ones the caller
-                # holds constant, such as a single identity; do not replace them.
-                constant_mask = (
-                    self._constant_parameter_mask | stage.constant_parameter_mask
-                )
-                self.set_constant_parameters(
-                    constant_mask, self._solved_parameters.clone()[constant_mask]
-                )
-            # Restore the initial global rigid transform for the whole body.
-            if "Stage 2" in stage.info:
-                self._solved_parameters[:6] = start_global_rigid_params
+        caller_constant_mask = self._constant_parameter_mask.clone()
+        try:
+            for stage in stages:
+                if verbose:
+                    logger.info("Starting %s...", stage.info)
+                if stage.constant_parameter_mask is not None:
+                    # Add the stage's constant parameters to the ones the caller
+                    # holds constant, such as a single identity; do not replace them.
+                    constant_mask = (
+                        self._constant_parameter_mask | stage.constant_parameter_mask
+                    )
+                    self.set_constant_parameters(
+                        constant_mask, self._solved_parameters.clone()[constant_mask]
+                    )
+                # Restore the initial global rigid transform for the whole body.
+                if "Stage 2" in stage.info:
+                    self._solved_parameters[:6] = start_global_rigid_params
 
-            if skip_global_stages:
-                if "Stage 2" in stage.info or "Stage 3" in stage.info:
-                    continue
+                if skip_global_stages:
+                    if "Stage 2" in stage.info or "Stage 3" in stage.info:
+                        continue
 
-            # The stages are cached and shared by later fit() calls: hold the
-            # constant parameters out of a copy, not of the cached stage.
-            active_stage = dataclasses.replace(
-                stage,
-                active_parameter_mask=stage.active_parameter_mask
-                & ~self._constant_parameter_mask,
-            )
-            self._optimize_one_stage(target_vertices, active_stage)
+                # The stages are cached and shared by later fit() calls: hold the
+                # constant parameters out of a copy, not of the cached stage.
+                active_stage = dataclasses.replace(
+                    stage,
+                    active_parameter_mask=stage.active_parameter_mask
+                    & ~self._constant_parameter_mask,
+                )
+                self._optimize_one_stage(target_vertices, active_stage)
+        finally:
+            # The stages hold parameters constant only within this fit. A
+            # tracking fit runs again without reset(), so keep only the
+            # caller's constants.
+            self._constant_parameter_mask = caller_constant_mask
 
     def reset(self) -> None:
         """Reset all model parameters to zero."""

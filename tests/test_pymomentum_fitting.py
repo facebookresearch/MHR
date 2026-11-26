@@ -147,25 +147,35 @@ def test_repeated_fit_matches_fresh_fit(exclude_expression):
 
 
 def test_fit_after_tracking_fit_matches_fresh_fit():
-    # A tracking fit continues from the previous frame without reset(), so
-    # the face parameters that stage 2 holds constant are still constant.
+    # A tracking fit continues from the previous frame without reset(); the
+    # face parameters that stage 2 holds constant must not stay constant.
     reused_stages = []
     reused = _fitter(reused_stages)
     reused.reset()
     reused.fit(_TARGET)
+    reused_stages.clear()
     reused.fit(_TARGET, skip_global_stages=True)
+    tracking_stages = list(reused_stages)
     reused_stages.clear()
     reused.reset()
     reused.fit(_TARGET)
 
+    fresh_tracking_stages = []
+    fresh_tracking = _fitter(fresh_tracking_stages)
+    fresh_tracking.reset()
+    fresh_tracking.fit(_TARGET, skip_global_stages=True)
     fresh_stages = []
     fresh = _fitter(fresh_stages)
     fresh.reset()
     fresh.fit(_TARGET)
 
-    assert len(reused_stages) == len(fresh_stages)
-    for (info, reused_mask), (_, fresh_mask) in zip(reused_stages, fresh_stages):
-        assert torch.equal(reused_mask, fresh_mask), info
+    for reused_fit, fresh_fit in [
+        (tracking_stages, fresh_tracking_stages),
+        (reused_stages, fresh_stages),
+    ]:
+        assert len(reused_fit) == len(fresh_fit)
+        for (info, reused_mask), (_, fresh_mask) in zip(reused_fit, fresh_fit):
+            assert torch.equal(reused_mask, fresh_mask), info
 
 
 def test_fit_leaves_stage_masks_unchanged():

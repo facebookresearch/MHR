@@ -14,8 +14,9 @@
 
 """Default (not fast) fitting paths of the SMPL-MHR conversion tool.
 
-The tool tests use the small SMPL stand-in of test_smpl_fast_fitting.py. The
-MHR tracking test runs when MHR_TEST_ASSETS names the release asset folder.
+The tool tests use the small SMPL stand-in of test_smpl_fast_fitting.py and an
+SMPL-X-sized stand-in, so no licensed SMPL(X) model file is needed. The tests
+on the MHR model run when MHR_TEST_ASSETS names the release asset folder.
 """
 
 import os
@@ -29,12 +30,15 @@ from tests.test_smpl_fast_fitting import (
     _fitter,
     _load_tool_module,
     _NUM_VERTICES,
+    _rodrigues,
+    _TOOL_DIR,
     _ToyBodyModel,
     conversion,
 )
 
 ASSETS = os.environ.get("MHR_TEST_ASSETS")
 _NUM_VERTICES_SMPL = 6890
+_NUM_VERTICES_SMPLX = 10475
 
 utils = _load_tool_module("utils")
 
@@ -44,6 +48,7 @@ def _converter(smpl_model) -> object:
     converter.__dict__.update(
         _smpl_model=smpl_model,
         smpl_model_type="smpl",
+        _hand_pose_dim=0,
         _DEVICE="cpu",
         _batch_size=256,
     )
@@ -201,3 +206,241 @@ def test_frame_selection_returns_frame_indices_of_long_sequences(tool):
     assert selected[0] == best_frame
     assert np.all(selected % 16 == 0)
     assert np.all(selected < num_frames)
+
+
+def _mhr_rest_vertices(model) -> torch.Tensor:
+    with torch.no_grad():
+        vertices, _ = model(torch.zeros(1, 45), torch.zeros(1, 204), torch.zeros(1, 72))
+    return vertices
+
+
+@pytest.mark.skipif(ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder")
+@pytest.mark.parametrize("sequence", ["tracking", "reprocessing"])
+def test_pymomentum_tracking_fits_the_face_of_every_frame(sequence):
+    from mhr.mhr import MHR
+
+    model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=1)
+    smpl_model = types.SimpleNamespace(
+        v_template=torch.zeros(_NUM_VERTICES_SMPL, 3), to=lambda device: smpl_model
+    )
+    converter = conversion.Conversion(model, smpl_model, method="pymomentum")
+    generator = torch.Generator().manual_seed(0)
+    identity = 0.5 * torch.randn(1, 45, generator=generator)
+    if sequence == "tracking":
+        # Frame 0 has a neutral face, the later frames their own expression.
+        weights = torch.ones(3, 1)
+        expression = torch.rand(3, 72, generator=generator)
+        expression[0] = 0
+    else:
+        # Failure cases are reprocessed by tracking an interpolation from zero
+        # parameters to the parameters of the failed frame.
+        weights = torch.linspace(0, 1, 5)[:, None]
+        expression = weights * torch.rand(1, 72, generator=generator)
+    with torch.no_grad():
+        target, _ = model(
+            weights * identity, torch.zeros(len(weights), 204), expression
+        )
+
+    tracked = converter._s2m_fit_mhr_using_pymomentum(
+        target, single_identity=False, is_tracking=True
+    )
+    per_frame = converter._s2m_fit_mhr_using_pymomentum(
+        target, single_identity=False, is_tracking=False
+    )
+
+    face_expression = tracked["face_expr_coeffs"]
+    head_identity = tracked["identity_coeffs"][:, 20:40]
+    for frame in range(1, len(weights)):
+        assert not torch.equal(face_expression[frame], face_expression[0]), frame
+        assert not torch.equal(head_identity[frame], head_identity[0]), frame
+    head = torch.from_numpy(
+        np.load(_TOOL_DIR / "assets" / "head_hand_mask.npz")["head_mask"] > 0
+    )
+
+    def head_error(parameters):
+        with torch.no_grad():
+            vertices, _ = model(
+                parameters["identity_coeffs"],
+                parameters["lbs_model_params"],
+                parameters["face_expr_coeffs"],
+            )
+        return (vertices - target).norm(dim=-1)[:, head].mean(dim=1)
+
+    # Tracking only initializes each frame from the previous one, so it fits
+    # the head about as well as fitting every frame on its own (cm).
+    tracked_error = head_error(tracked)[1:]
+    per_frame_error = head_error(per_frame)[1:]
+    assert (tracked_error <= 2 * per_frame_error + 0.05).all(), (
+        tracked_error,
+        per_frame_error,
+    )
+
+
+class _ToySMPLXModel(torch.nn.Module):
+    """An SMPL-X-sized stand-in with the hand pose and expression sizes of
+    smplx.SMPLX.
+
+    Like smplx, it maps hand poses through the first num_pca_comps PCA
+    components when use_pca is set and reshapes them to 15 joints otherwise,
+    and appends the expression to the betas before the shape blendshapes. Zero
+    parameters give v_template.
+    """
+
+    num_betas = 10
+
+    def __init__(
+        self,
+        v_template: np.ndarray,
+        use_pca: bool = True,
+        num_pca_comps: int = 6,
+        num_expression_coeffs: int = 10,
+    ) -> None:
+        super().__init__()
+        self.use_pca = use_pca
+        self.num_pca_comps = num_pca_comps
+        self.num_expression_coeffs = num_expression_coeffs
+        generator = torch.Generator().manual_seed(0)
+        self.v_template = torch.as_tensor(v_template, dtype=torch.float32)
+        self.shapedirs = 1e-3 * torch.randn(
+            _NUM_VERTICES_SMPLX,
+            3,
+            self.num_betas + num_expression_coeffs,
+            generator=generator,
+        )
+        self.hand_components = torch.eye(45)[:num_pca_comps]
+        self.posedirs = 1e-3 * torch.randn(
+            63 + 2 * 45, _NUM_VERTICES_SMPLX, 3, generator=generator
+        )
+        # The SMPL-X to MHR mapping indexes up to 20897 triangles.
+        index = np.arange(20908)
+        self.faces = np.stack([index, index + 1, index + 2], 1) % _NUM_VERTICES_SMPLX
+
+    def forward(
+        self,
+        betas,
+        body_pose,
+        global_orient,
+        transl,
+        left_hand_pose,
+        right_hand_pose,
+        expression,
+        **unused,
+    ):
+        shape = torch.cat([betas, expression], dim=1)
+        hand_poses = []
+        for hand_pose in (left_hand_pose, right_hand_pose):
+            if self.use_pca:
+                hand_pose = torch.einsum("bi,ij->bj", hand_pose, self.hand_components)
+            hand_poses.append(hand_pose.reshape(-1, 15, 3).flatten(1))
+        pose = torch.cat([body_pose.reshape(-1, 63), *hand_poses], dim=1)
+        shaped = self.v_template + torch.einsum("vck,bk->bvc", self.shapedirs, shape)
+        posed = shaped + torch.einsum("pvc,bp->bvc", self.posedirs, torch.sin(pose))
+        rotated = posed @ _rodrigues(global_orient.reshape(-1, 3)).transpose(1, 2)
+        return types.SimpleNamespace(vertices=rotated + transl[:, None, :])
+
+
+@pytest.fixture(scope="module")
+def mhr_rest_body_on_smplx():
+    """The MHR LOD 1 model and its rest body mapped onto the SMPL-X vertices
+    (meters), the exact MHR-to-SMPL-X answer for the MHR rest body."""
+
+    from mhr.mhr import MHR
+
+    model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=1)
+    mapping = np.load(_TOOL_DIR / "assets" / "mhr2smplx_mapping.npz")
+    faces = np.asarray(model.character.mesh.faces)
+    corners = _mhr_rest_vertices(model)[0].numpy()[faces[mapping["triangle_ids"]]]
+    v_template = (corners * mapping["baryc_coords"][..., None]).sum(1) * 0.01
+    return model, v_template
+
+
+@pytest.mark.skipif(ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder")
+@pytest.mark.parametrize(
+    "smplx_options",
+    [
+        {},
+        {"use_pca": False},
+        {"num_pca_comps": 12},
+        {"num_expression_coeffs": 50},
+    ],
+    ids=["defaults", "no_pca", "12_pca_components", "50_expressions"],
+)
+def test_smplx_conversion_follows_the_hand_pose_and_expression_sizes(
+    mhr_rest_body_on_smplx, smplx_options
+):
+    model, v_template = mhr_rest_body_on_smplx
+    smplx_model = _ToySMPLXModel(v_template, **smplx_options)
+
+    # Without hand poses and expression, the conversion fills them in.
+    parameters = {
+        "betas": torch.zeros(1, 10),
+        "body_pose": torch.zeros(1, 63),
+        "global_orient": torch.zeros(1, 3),
+        "transl": torch.zeros(1, 3),
+    }
+    result = conversion.Conversion(
+        model, smplx_model, method="pymomentum"
+    ).convert_smpl2mhr(smpl_parameters=parameters, return_mhr_vertices=True)
+    assert result.result_vertices.shape == (1, 18439, 3)
+    assert np.isfinite(result.result_errors).all()
+
+    result = conversion.Conversion(
+        model, smplx_model, method="pytorch"
+    ).convert_mhr2smpl(
+        mhr_vertices=_mhr_rest_vertices(model),
+        return_smpl_vertices=True,
+        fast_fitting=True,
+    )
+    deviation_cm = 100 * np.linalg.norm(result.result_vertices[0] - v_template, axis=-1)
+    assert deviation_cm.max() < 1.0
+
+    # Fit results without hand poses are scored with zero hand poses.
+    converter = conversion.Conversion(model, smplx_model, method="pytorch")
+    fitter = conversion.PyTorchSMPLFitting(
+        smpl_model=smplx_model,
+        smpl_edges=converter._smpl_edges,
+        smpl_model_type="smplx",
+        hand_pose_dim=converter._hand_pose_dim,
+        device="cpu",
+    )
+    body_parameters = {
+        "betas": torch.zeros(1, 10),
+        "body_pose": torch.zeros(1, 63),
+        "global_orient": torch.zeros(1, 3),
+        "transl": torch.zeros(1, 3),
+    }
+    errors = fitter._evaluate_conversion_error(
+        body_parameters, torch.as_tensor(v_template, dtype=torch.float32)[None]
+    )
+    assert errors.max() < 1e-4
+
+
+@pytest.mark.skipif(ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder")
+@pytest.mark.parametrize("lod", [0, 1, 2, 6])
+def test_mhr_to_smplx_returns_the_rest_body_or_refuses_the_lod(
+    mhr_rest_body_on_smplx, lod
+):
+    from mhr.mhr import MHR
+
+    lod1_model, v_template = mhr_rest_body_on_smplx
+    model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=lod)
+    # Both a converter of this LOD and MHR vertices of this LOD given to an
+    # LOD 1 converter.
+    for converter_model in [model, lod1_model]:
+        try:
+            converter = conversion.Conversion(
+                converter_model, _ToySMPLXModel(v_template), method="pytorch"
+            )
+            result = converter.convert_mhr2smpl(
+                mhr_vertices=_mhr_rest_vertices(model),
+                return_smpl_vertices=True,
+                fast_fitting=True,
+            )
+        except ValueError as error:
+            # The surface mappings are made for one LOD; a clear refusal is fine.
+            assert lod != 1 and "LOD 1" in str(error)
+            continue
+        deviation_cm = 100 * np.linalg.norm(
+            result.result_vertices[0] - v_template, axis=-1
+        )
+        assert deviation_cm.max() < 1.0
