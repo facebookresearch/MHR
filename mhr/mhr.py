@@ -132,7 +132,7 @@ class MHR(_model.MHR):
         if folder is None:
             searched = get_asset_folder_candidates()
             for candidate in searched:
-                if all(os.path.exists(path) for path in required_paths(candidate)):
+                if all(os.path.isfile(path) for path in required_paths(candidate)):
                     folder = candidate
                     break
             else:
@@ -148,7 +148,7 @@ class MHR(_model.MHR):
         corrective_activation_path = (
             get_corrective_activation_path(folder) if wants_pose_correctives else None
         )
-        missing = [path for path in required_paths(folder) if not os.path.exists(path)]
+        missing = [path for path in required_paths(folder) if not os.path.isfile(path)]
         if missing:
             raise FileNotFoundError(asset_not_found_message(missing, searched))
 

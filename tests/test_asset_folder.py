@@ -164,11 +164,16 @@ def test_from_files_default_lists_every_searched_folder(isolated, monkeypatch):
     assert "corrective_activation.npz" not in message
 
 
-def test_from_files_default_skips_a_partial_folder(isolated, monkeypatch):
+@pytest.mark.parametrize("partial", ["model file only", "lod1.fbx is a folder"])
+def test_from_files_default_skips_a_partial_folder(isolated, monkeypatch, partial):
     mhr_module = pytest.importorskip("mhr.mhr")
     monkeypatch.setenv(io.ASSETS_DEST_ENV, str(isolated / "dest"))
     # An extraction that stopped after the model file, ahead of a complete folder.
-    _make_assets(isolated / "dest" / "assets")
+    incomplete = _make_assets(isolated / "dest" / "assets")
+    if partial == "lod1.fbx is a folder":
+        (incomplete / "lod1.fbx").mkdir()
+        for name in ("corrective_blendshapes_lod1.npz", "corrective_activation.npz"):
+            (incomplete / name).write_text("")
     complete = _make_assets(isolated / "work" / "assets")
     for name in (
         "lod1.fbx",
