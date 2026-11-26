@@ -147,8 +147,8 @@ def test_repeated_fit_matches_fresh_fit(exclude_expression):
 
 
 def test_fit_after_tracking_fit_matches_fresh_fit():
-    # A tracking fit continues from the previous frame without reset(), so
-    # the face parameters that stage 2 holds constant are still constant.
+    # A tracking fit continues from the previous frame without reset(); the
+    # face parameters that stage 2 holds constant must not stay constant.
     reused_stages = []
     reused = _fitter(reused_stages)
     reused.reset()

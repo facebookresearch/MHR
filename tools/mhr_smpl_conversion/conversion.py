@@ -109,6 +109,8 @@ from utils import (
 
 _NUM_VERTICES_SMPL = 6890
 _NUM_VERTICES_SMPLX = 10475
+# The surface mappings and masks in assets/ are made for the LOD 1 MHR mesh.
+_NUM_VERTICES_MHR_LOD1 = 18439
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +169,7 @@ class Conversion:
     topologies and optimization-based fitting to match target vertex positions.
 
     Args:
-        mhr_model: Initialized MHR body model instance
+        mhr_model: Initialized LOD 1 MHR body model instance
         smpl_model: Initialized SMPL or SMPLX model instance (from smplx library)
         method: Fitting method - "pymomentum" (CPU) or "pytorch" (GPU). Default: "pymomentum"
         batch_size: Number of frames to process in each batch. Default: 256
@@ -189,13 +191,21 @@ class Conversion:
                    Defaults to "pymomentum".
 
         Raises:
-            ValueError: If SMPL model has unsupported number of vertices.
+            ValueError: If the MHR model is not LOD 1 or the SMPL model has an
+                unsupported number of vertices.
         """
         self._DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
         self._method = FittingMethod.from_string(method)
         if self._method == FittingMethod.PYMOMENTUM:
             self._DEVICE = "cpu"  # pymomentum only supports cpu
 
+        num_mhr_vertices = mhr_model.character.mesh.vertices.shape[0]
+        if num_mhr_vertices != _NUM_VERTICES_MHR_LOD1:
+            raise ValueError(
+                "Conversion supports only the LOD 1 MHR model "
+                f"({_NUM_VERTICES_MHR_LOD1} vertices), got {num_mhr_vertices} "
+                "vertices. Use MHR.from_files(lod=1)."
+            )
         self._mhr_model = mhr_model.to(self._DEVICE)
         self._smpl_model = smpl_model.to(self._DEVICE)
 
@@ -204,7 +214,7 @@ class Conversion:
             self._hand_pose_dim = 0
         elif smpl_model.v_template.shape[0] == _NUM_VERTICES_SMPLX:
             self.smpl_model_type = "smplx"
-            self._hand_pose_dim = 6 if smpl_model.use_pca else 45
+            self._hand_pose_dim = smpl_model.num_pca_comps if smpl_model.use_pca else 45
         else:
             raise ValueError(
                 f"Unsupported SMPL model type! Expected {_NUM_VERTICES_SMPL} or {_NUM_VERTICES_SMPLX} vertices, got {smpl_model.v_template.shape[0]}"
@@ -1130,7 +1140,13 @@ class Conversion:
         for batch_start in tqdm(range(0, num_samples, self._batch_size)):
             batch_end = min(batch_start + self._batch_size, num_samples)
             batch_parameters = get_batched_parameters(
-                smpl_parameters, batch_start, batch_end, str(self._DEVICE), "smpl"
+                smpl_parameters,
+                batch_start,
+                batch_end,
+                str(self._DEVICE),
+                "smpl",
+                self._hand_pose_dim,
+                getattr(self._smpl_model, "num_expression_coeffs", 10),
             )
 
             with torch.no_grad():
@@ -1223,7 +1239,11 @@ class Conversion:
 
             if self.smpl_model_type == "smplx":
                 interpolated_params = complete_smplx_parameters(
-                    interpolated_params, interpolation_steps + 1, self._DEVICE
+                    interpolated_params,
+                    interpolation_steps + 1,
+                    self._DEVICE,
+                    self._hand_pose_dim,
+                    self._smpl_model.num_expression_coeffs,
                 )
 
             # Generate SMPL vertices for this interpolation step

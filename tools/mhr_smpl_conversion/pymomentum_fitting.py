@@ -155,6 +155,7 @@ class PyMomentumModelFitting:
 
         # Run optimization stages
         start_global_rigid_params = self._solved_parameters[:6].clone()
+        caller_constant_mask = self._constant_parameter_mask.clone()
         for stage in stages:
             if verbose:
                 logger.info("Starting %s...", stage.info)
@@ -183,6 +184,9 @@ class PyMomentumModelFitting:
                 & ~self._constant_parameter_mask,
             )
             self._optimize_one_stage(target_vertices, active_stage)
+        # The stages hold parameters constant only within this fit. A tracking
+        # fit runs again without reset(), so keep only the caller's constants.
+        self._constant_parameter_mask = caller_constant_mask
 
     def reset(self) -> None:
         """Reset all model parameters to zero."""

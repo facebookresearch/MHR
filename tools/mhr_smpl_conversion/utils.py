@@ -421,6 +421,8 @@ def get_batched_parameters(
     batch_end: int,
     device: str,
     model_type: str = "mhr",
+    hand_pose_dim: int = 6,
+    num_expression_coeffs: int = 10,
 ) -> dict[str, torch.Tensor]:
     """Get batched parameters for a specific range of frames.
 
@@ -434,6 +436,8 @@ def get_batched_parameters(
         batch_end: End index of the batch
         device: Device to place the tensors on
         model_type: Type of model - "mhr" or "smpl" (default: "mhr")
+        hand_pose_dim: Size of the SMPL-X hand poses that are filled in
+        num_expression_coeffs: Size of the SMPL-X expression that is filled in
 
     Returns:
         Dictionary containing batched parameters for the specified frame range
@@ -449,7 +453,11 @@ def get_batched_parameters(
     # For SMPLX model, ensure all required parameters exist with correct batch dimension
     if model_type == "smpl":
         batched_parameter_dict = complete_smplx_parameters(
-            batched_parameter_dict, batch_end - batch_start, device
+            batched_parameter_dict,
+            batch_end - batch_start,
+            device,
+            hand_pose_dim,
+            num_expression_coeffs,
         )
 
     return batched_parameter_dict
@@ -459,6 +467,8 @@ def complete_smplx_parameters(
     smplx_parameters: dict[str, torch.Tensor],
     batch_size: int,
     device: str,
+    hand_pose_dim: int = 6,
+    num_expression_coeffs: int = 10,
 ) -> dict[str, torch.Tensor]:
     """Complete SMPLX parameters with default values for missing keys.
 
@@ -470,6 +480,9 @@ def complete_smplx_parameters(
         smplx_parameters: Dictionary of SMPLX parameters (may be incomplete)
         batch_size: Number of frames in the batch
         device: Device to place the tensors on
+        hand_pose_dim: Size of each hand pose: the model's num_pca_comps with
+            PCA hand poses, else 45
+        num_expression_coeffs: The model's number of expression coefficients
 
     Returns:
         Complete SMPLX parameter dictionary with all required keys
@@ -483,17 +496,19 @@ def complete_smplx_parameters(
 
     # Hand pose dimensions depend on PCA usage
     if "left_hand_pose" not in smplx_parameters:
-        # Default to 6 dimensions (PCA mode), will be overridden if needed
-        smplx_parameters["left_hand_pose"] = torch.zeros([batch_size, 6], device=device)
+        smplx_parameters["left_hand_pose"] = torch.zeros(
+            [batch_size, hand_pose_dim], device=device
+        )
     if "right_hand_pose" not in smplx_parameters:
         smplx_parameters["right_hand_pose"] = torch.zeros(
-            [batch_size, 6], device=device
+            [batch_size, hand_pose_dim], device=device
         )
 
     # Expression parameters
     if "expression" not in smplx_parameters:
-        # Default to 10 expression coefficients, will be overridden if needed
-        smplx_parameters["expression"] = torch.zeros([batch_size, 10], device=device)
+        smplx_parameters["expression"] = torch.zeros(
+            [batch_size, num_expression_coeffs], device=device
+        )
 
     return smplx_parameters
 
