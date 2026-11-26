@@ -394,6 +394,26 @@ def test_smplx_conversion_follows_the_hand_pose_and_expression_sizes(
     deviation_cm = 100 * np.linalg.norm(result.result_vertices[0] - v_template, axis=-1)
     assert deviation_cm.max() < 1.0
 
+    # Fit results without hand poses are scored with zero hand poses.
+    converter = conversion.Conversion(model, smplx_model, method="pytorch")
+    fitter = conversion.PyTorchSMPLFitting(
+        smpl_model=smplx_model,
+        smpl_edges=converter._smpl_edges,
+        smpl_model_type="smplx",
+        hand_pose_dim=converter._hand_pose_dim,
+        device="cpu",
+    )
+    body_parameters = {
+        "betas": torch.zeros(1, 10),
+        "body_pose": torch.zeros(1, 63),
+        "global_orient": torch.zeros(1, 3),
+        "transl": torch.zeros(1, 3),
+    }
+    errors = fitter._evaluate_conversion_error(
+        body_parameters, torch.as_tensor(v_template, dtype=torch.float32)[None]
+    )
+    assert errors.max() < 1e-4
+
 
 @pytest.mark.skipif(ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder")
 @pytest.mark.parametrize("lod", [0, 1, 2, 6])
@@ -402,20 +422,25 @@ def test_mhr_to_smplx_returns_the_rest_body_or_refuses_the_lod(
 ):
     from mhr.mhr import MHR
 
-    _, v_template = mhr_rest_body_on_smplx
+    lod1_model, v_template = mhr_rest_body_on_smplx
     model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=lod)
-    try:
-        converter = conversion.Conversion(
-            model, _ToySMPLXModel(v_template), method="pytorch"
+    # Both a converter of this LOD and MHR vertices of this LOD given to an
+    # LOD 1 converter.
+    for converter_model in [model, lod1_model]:
+        try:
+            converter = conversion.Conversion(
+                converter_model, _ToySMPLXModel(v_template), method="pytorch"
+            )
+            result = converter.convert_mhr2smpl(
+                mhr_vertices=_mhr_rest_vertices(model),
+                return_smpl_vertices=True,
+                fast_fitting=True,
+            )
+        except ValueError as error:
+            # The surface mappings are made for one LOD; a clear refusal is fine.
+            assert lod != 1 and "LOD 1" in str(error)
+            continue
+        deviation_cm = 100 * np.linalg.norm(
+            result.result_vertices[0] - v_template, axis=-1
         )
-    except ValueError as error:
-        # The surface mappings are made for one LOD; a clear refusal is fine.
-        assert lod != 1 and "LOD 1" in str(error)
-        return
-    result = converter.convert_mhr2smpl(
-        mhr_vertices=_mhr_rest_vertices(model),
-        return_smpl_vertices=True,
-        fast_fitting=True,
-    )
-    deviation_cm = 100 * np.linalg.norm(result.result_vertices[0] - v_template, axis=-1)
-    assert deviation_cm.max() < 1.0
+        assert deviation_cm.max() < 1.0

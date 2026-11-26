@@ -1418,10 +1418,10 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                 )
             else:
                 left_hand_pose_batch = torch.zeros(
-                    len(batch_indices), 6, device=self._device
+                    len(batch_indices), self._hand_pose_dim, device=self._device
                 )
                 right_hand_pose_batch = torch.zeros(
-                    len(batch_indices), 6, device=self._device
+                    len(batch_indices), self._hand_pose_dim, device=self._device
                 )
 
             # Generate additional SMPLX parameters if needed

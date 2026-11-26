@@ -398,6 +398,12 @@ class Conversion:
             self._batch_size = batch_size
         if mhr_vertices is not None:
             mhr_vertices = self._to_tensor(mhr_vertices)
+            if mhr_vertices.shape[-2] != _NUM_VERTICES_MHR_LOD1:
+                raise ValueError(
+                    "mhr_vertices must be vertices of the LOD 1 MHR model "
+                    f"({_NUM_VERTICES_MHR_LOD1} vertices), got "
+                    f"{mhr_vertices.shape[-2]} vertices."
+                )
         else:
             if mhr_parameters is None:
                 raise ValueError(
@@ -1243,7 +1249,7 @@ class Conversion:
                     interpolation_steps + 1,
                     self._DEVICE,
                     self._hand_pose_dim,
-                    self._smpl_model.num_expression_coeffs,
+                    getattr(self._smpl_model, "num_expression_coeffs", 10),
                 )
 
             # Generate SMPL vertices for this interpolation step
