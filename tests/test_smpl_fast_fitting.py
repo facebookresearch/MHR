@@ -58,6 +58,7 @@ def _load_tool_module(name: str):
         "pymomentum_fitting",
         "utils",
         "file_assets",
+        "smpl_model",
     )
     saved = {name: sys.modules.get(name) for name in (*stubs, *tool_modules)}
     sys.modules.update(stubs)

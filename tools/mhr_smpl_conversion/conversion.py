@@ -269,8 +269,9 @@ class Conversion:
             ValueError: If neither smpl_vertices nor smpl_parameters are provided,
                        or if an unsupported fitting method is specified.
         """
-        if batch_size is not None:
-            self._batch_size = batch_size
+        # A batch_size given to a call applies to that call only.
+        if batch_size is None:
+            batch_size = self._batch_size
         # Validate and process input data
         if smpl_vertices is not None:
             # Convert to tensor and reshape to expected format
@@ -293,16 +294,21 @@ class Conversion:
                 k: v.expand(num_frames, *v.shape[1:])
                 for k, v in smpl_parameters.items()
             }
-            _, smpl_vertices = self._smpl_para2mesh(smpl_parameters, return_mesh=False)
+            _, smpl_vertices = self._smpl_para2mesh(
+                smpl_parameters, return_mesh=False, batch_size=batch_size
+            )
             smpl_vertices = self._to_tensor(smpl_vertices)
 
-        target_vertices = self._compute_target_vertices(smpl_vertices, "smpl2mhr")
+        target_vertices = self._compute_target_vertices(
+            smpl_vertices, "smpl2mhr", batch_size=batch_size
+        )
         if self._method == FittingMethod.PYMOMENTUM:
             fitting_parameter_results = self._s2m_fit_mhr_using_pymomentum(
                 target_vertices,
                 single_identity,
                 is_tracking,
                 exclude_expression=exclude_expression,
+                batch_size=batch_size,
             )
             # Reprocess failure cases by turning the fitting problem into a tracking problem.
             fitting_parameter_results, errors = self._s2m_reprocess_failure_cases(
@@ -313,6 +319,7 @@ class Conversion:
                 single_identity=single_identity,
                 exclude_expression=exclude_expression,
                 smpl_parameters=smpl_parameters,
+                batch_size=batch_size,
             )
         elif self._method == FittingMethod.PYTORCH:
             self._s2m_load_masks()
@@ -321,10 +328,12 @@ class Conversion:
                 single_identity,
                 is_tracking=is_tracking,
                 exclude_expression=exclude_expression,
+                batch_size=batch_size,
             )
             errors = self._s2m_evaluate_conversion_error(
                 fitting_parameter_results,
                 target_vertices,
+                batch_size=batch_size,
             )
         else:
             raise ValueError(
@@ -335,7 +344,9 @@ class Conversion:
         mhr_vertices = None
         if return_mhr_meshes or return_mhr_vertices:
             result_meshes, mhr_vertices = self._mhr_para2mesh(
-                fitting_parameter_results, return_mesh=return_mhr_meshes
+                fitting_parameter_results,
+                return_mesh=return_mhr_meshes,
+                batch_size=batch_size,
             )
 
         return ConversionResult(
@@ -357,7 +368,7 @@ class Conversion:
         return_smpl_parameters: bool = True,
         return_smpl_vertices: bool = False,
         return_fitting_errors: bool = True,
-        batch_size: int = 256,
+        batch_size: int | None = None,
         fast_fitting: bool = False,
         initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> ConversionResult:
@@ -374,7 +385,7 @@ class Conversion:
             return_smpl_parameters: Whether to return the SMPL(X) parameters. If True, the function will return a dictionary of SMPL(X) parameters.
             return_smpl_vertices: Whether to return the SMPL(X) vertices. If True, the function will return a numpy array of SMPL(X) vertices.
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for each frame.
-            batch_size: Number of frames to process in each batch.
+            batch_size: Number of frames to process in each batch. If None, uses the default batch size.
             fast_fitting: Whether to fit with the fast path: the default initial pose steps, then
                 Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
                 steps. Frames with a starting point (initial_smpl_parameters, or the previous frame
@@ -394,8 +405,9 @@ class Conversion:
                 - result_parameters: Dictionary of SMPL(X) parameters (if return_smpl_parameters=True)
                 - result_errors: Numpy array of fitting errors for each frame (if return_fitting_errors=True)
         """
-        if batch_size is not None:
-            self._batch_size = batch_size
+        # A batch_size given to a call applies to that call only.
+        if batch_size is None:
+            batch_size = self._batch_size
         if mhr_vertices is not None:
             mhr_vertices = self._to_tensor(mhr_vertices)
             if mhr_vertices.shape[-2] != _NUM_VERTICES_MHR_LOD1:
@@ -409,10 +421,14 @@ class Conversion:
                 raise ValueError(
                     "mhr_parameters must be provided if mhr_vertices is None."
                 )
-            _, mhr_vertices = self._mhr_para2mesh(mhr_parameters, return_mesh=False)
+            _, mhr_vertices = self._mhr_para2mesh(
+                mhr_parameters, return_mesh=False, batch_size=batch_size
+            )
             mhr_vertices = self._to_tensor(mhr_vertices)
 
-        target_vertices = self._compute_target_vertices(mhr_vertices, "mhr2smpl")
+        target_vertices = self._compute_target_vertices(
+            mhr_vertices, "mhr2smpl", batch_size=batch_size
+        )
 
         # For MHR to SMPL, we only support pytorch solution
         if self._method == FittingMethod.PYTORCH:
@@ -422,9 +438,10 @@ class Conversion:
                 is_tracking,
                 fast_fitting=fast_fitting,
                 initial_smpl_parameters=initial_smpl_parameters,
+                batch_size=batch_size,
             )
             errors = self._m2s_evaluate_conversion_error(
-                fitting_parameter_results, target_vertices
+                fitting_parameter_results, target_vertices, batch_size=batch_size
             )
         else:
             raise ValueError(
@@ -435,7 +452,9 @@ class Conversion:
         smpl_vertices = None
         if return_smpl_meshes or return_smpl_vertices:
             result_meshes, smpl_vertices = self._smpl_para2mesh(
-                fitting_parameter_results, return_mesh=return_smpl_meshes
+                fitting_parameter_results,
+                return_mesh=return_smpl_meshes,
+                batch_size=batch_size,
             )
 
         return ConversionResult(
@@ -454,7 +473,7 @@ class Conversion:
         return_smpl_parameters: bool = True,
         return_smpl_vertices: bool = False,
         return_fitting_errors: bool = True,
-        batch_size: int = 256,
+        batch_size: int | None = None,
         fast_fitting: bool = False,
         initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
     ) -> ConversionResult:
@@ -468,6 +487,7 @@ class Conversion:
 
         Args:
             sam3d_outputs: List of dictionaries containing the output of the SAM3D model.
+                An empty list (no detected person) returns a ConversionResult with no fields set.
             return_smpl_meshes: Whether to return the SMPL meshes. If True, the function will return a list
                                 of SMPL meshes.
             return_smpl_parameters: Whether to return the SMPL parameters. If True, the function will return a
@@ -476,7 +496,7 @@ class Conversion:
                                   array of SMPL vertices.
             return_fitting_errors: Whether to return fitting errors. If True, the function will return errors for
                                    each frame.
-            batch_size: Number of frames to process in each batch.
+            batch_size: Number of frames to process in each batch. If None, uses the default batch size.
             fast_fitting: Whether to fit with the fast path: the default initial pose steps, then
                 Levenberg-Marquardt steps on the vertex error instead of the final 300 Adam
                 steps. People with a starting point (initial_smpl_parameters) run only a few
@@ -505,8 +525,12 @@ class Conversion:
 
         # The result of SAM3DBodyEstimator.process_one_image() is a list of dictionaries, each dictionary contains the outputs of the SAM3D model for one person.
         # We concatenate all person's outputs into one dictionary, so that we can convert them to SMPL in batch.
+        if len(sam3d_outputs) == 0:  # No person was detected.
+            return ConversionResult()
         concatenated_sam3d_outputs = {}
         for k in SAM3D_OUTPUT_VARIABLES:
+            if not all(k in sam3d_output for sam3d_output in sam3d_outputs):
+                continue
             concatenated_sam3d_outputs[k] = np.stack(
                 [
                     sam3d_output[k]
@@ -556,7 +580,9 @@ class Conversion:
             mhr_parameters["face_expr_coeffs"] = concatenated_sam3d_outputs[
                 "expr_params"
             ]
-            _, mhr_vertices = self._mhr_para2mesh(mhr_parameters, return_mesh=False)
+            _, mhr_vertices = self._mhr_para2mesh(
+                mhr_parameters, return_mesh=False, batch_size=batch_size
+            )
             mhr_vertices = self._to_tensor(mhr_vertices)
             mhr_vertices[..., [1, 2]] *= -1  # Camera system difference in SAM3D-Body
             mhr_vertices += 100.0 * concatenated_sam3d_outputs["pred_cam_t"][:, None, :]
@@ -586,7 +612,10 @@ class Conversion:
         return torch.from_numpy(data).float().to(self._DEVICE)
 
     def _compute_target_vertices(
-        self, source_vertices: torch.Tensor, direction: str = "smpl2mhr"
+        self,
+        source_vertices: torch.Tensor,
+        direction: str = "smpl2mhr",
+        batch_size: int | None = None,
     ) -> torch.Tensor:
         """
         Compute target vertices using barycentric interpolation from source vertices.
@@ -610,6 +639,8 @@ class Conversion:
         Raises:
             ValueError: If direction is not "smpl2mhr" or "mhr2smpl".
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         # Load appropriate mapping
         if direction == "smpl2mhr":
             mapped_face_id, baryc_coords = self._load_surface_mapping_SMPL2MHR()
@@ -651,10 +682,8 @@ class Conversion:
 
         logger.info(f"Converting meshes from {direction} with barycentric mapping...")
         disable_tqdm = len(getattr(tqdm, "_instances", [])) > 0
-        for batch_start in tqdm(
-            range(0, num_frames, self._batch_size), disable=disable_tqdm
-        ):
-            batch_end = min(batch_start + self._batch_size, num_frames)
+        for batch_start in tqdm(range(0, num_frames, batch_size), disable=disable_tqdm):
+            batch_end = min(batch_start + batch_size, num_frames)
             source_vertices_batch = source_vertices[batch_start:batch_end]
 
             # Batch barycentric interpolation using PyTorch
@@ -770,6 +799,7 @@ class Conversion:
         is_tracking: bool,
         exclude_expression: bool = False,
         known_parameters: tuple[torch.Tensor, torch.Tensor] | None = None,
+        batch_size: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Fit MHR model to target vertices using PyMomentum hierarchical optimization.
@@ -853,6 +883,7 @@ class Conversion:
                 target_vertices,
                 self._mhr_model.character.mesh.vertices,
                 self._mhr_model.character.mesh.faces,
+                batch_size=batch_size,
             )
             target_vertices_for_identity = target_vertices[selected_frames]
             num_identity_frames = len(selected_frames)
@@ -904,7 +935,9 @@ class Conversion:
             # Weighted average the identity parameters.
             logger.info("Get weighted average of body shapes.")
             errors = self._s2m_evaluate_conversion_error(
-                identity_parameter_results, target_vertices_for_identity
+                identity_parameter_results,
+                target_vertices_for_identity,
+                batch_size=batch_size,
             )
             weights = self._to_tensor(errors.max() / errors)
             weights /= weights.sum()
@@ -968,6 +1001,7 @@ class Conversion:
         single_identity: bool,
         is_tracking: bool = False,
         exclude_expression: bool = False,
+        batch_size: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Fit MHR model to target vertices using PyTorch optimizer.
@@ -981,13 +1015,15 @@ class Conversion:
         Returns:
             Fitted MHR model parameters [B, num_params]
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         pytorch_solver = PyTorchMHRFitting(
             mhr_model=self._mhr_model,
             mhr_edges=self._mhr_edges,
             mhr_vertex_mask=self._mhr_vertex_mask,
             mhr_param_masks=self._mhr_param_masks,
             device=self._DEVICE,
-            batch_size=self._batch_size,
+            batch_size=batch_size,
         )
 
         return pytorch_solver.fit(
@@ -1015,6 +1051,7 @@ class Conversion:
         is_tracking: bool,
         fast_fitting: bool = False,
         initial_smpl_parameters: dict[str, torch.Tensor | np.ndarray] | None = None,
+        batch_size: int | None = None,
     ) -> dict[str, torch.Tensor]:
         """
         Fit SMPL model to target vertices using PyTorch optimizer.
@@ -1029,13 +1066,15 @@ class Conversion:
         Returns:
             Dictionary containing fitted SMPL parameters
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         pytorch_solver = PyTorchSMPLFitting(
             smpl_model=self._smpl_model,
             smpl_edges=self._smpl_edges,
             smpl_model_type=self.smpl_model_type,
             hand_pose_dim=self._hand_pose_dim,
             device=self._DEVICE,
-            batch_size=self._batch_size,
+            batch_size=batch_size,
         )
 
         return pytorch_solver.fit(
@@ -1082,6 +1121,7 @@ class Conversion:
         mhr_parameters: dict[str, torch.Tensor],
         return_mesh: bool = True,
         verbose: bool = False,
+        batch_size: int | None = None,
     ) -> tuple[list[trimesh.Trimesh], np.ndarray]:
         """
         Convert MHR parameters to meshes and vertices.
@@ -1093,6 +1133,8 @@ class Conversion:
         Returns:
             Tuple of (list of meshes, numpy array of vertices)
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         faces = self._mhr_model.character.mesh.faces
         meshes = []
         mhr_vertices = []
@@ -1100,8 +1142,8 @@ class Conversion:
 
         if verbose:
             logger.info("Converting MHR parameters to meshes...")
-        for batch_start in tqdm(range(0, num_samples, self._batch_size)):
-            batch_end = min(batch_start + self._batch_size, num_samples)
+        for batch_start in tqdm(range(0, num_samples, batch_size)):
+            batch_end = min(batch_start + batch_size, num_samples)
             batch_parameters = get_batched_parameters(
                 mhr_parameters, batch_start, batch_end, str(self._DEVICE), "mhr"
             )
@@ -1125,6 +1167,7 @@ class Conversion:
         smpl_parameters: dict[str, torch.Tensor],
         return_mesh: bool = True,
         verbose: bool = False,
+        batch_size: int | None = None,
     ) -> tuple[list[trimesh.Trimesh], np.ndarray]:
         """
         Convert SMPL parameters to meshes and vertices.
@@ -1136,6 +1179,8 @@ class Conversion:
         Returns:
             Tuple of (list of meshes, numpy array of vertices)
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         faces = self._smpl_model.faces
         meshes = []
         smpl_vertices = []
@@ -1143,8 +1188,8 @@ class Conversion:
 
         if verbose:
             logger.info("Converting SMPL parameters to meshes...")
-        for batch_start in tqdm(range(0, num_samples, self._batch_size)):
-            batch_end = min(batch_start + self._batch_size, num_samples)
+        for batch_start in tqdm(range(0, num_samples, batch_size)):
+            batch_end = min(batch_start + batch_size, num_samples)
             batch_parameters = get_batched_parameters(
                 smpl_parameters,
                 batch_start,
@@ -1174,6 +1219,7 @@ class Conversion:
         single_identity: bool = False,
         exclude_expression: bool = False,
         smpl_parameters: Optional[dict[str, torch.Tensor]] = None,
+        batch_size: int | None = None,
     ) -> tuple[dict[str, torch.Tensor], np.ndarray]:
         """
         Reprocess failure cases of SMPL->MHR conversion using PyMomentum approach.
@@ -1197,7 +1243,7 @@ class Conversion:
 
         # Step 1: Compute conversion errors in average vertex distance using batch processing
         errors = self._s2m_evaluate_conversion_error(
-            fitting_parameter_results, target_vertices
+            fitting_parameter_results, target_vertices, batch_size=batch_size
         )
 
         # Step 2: Calculate average distance errors per frame and threshold to find failure cases
@@ -1218,6 +1264,7 @@ class Conversion:
                 smpl_vertices[failure_indices],
                 single_identity=single_identity,
                 is_tracking=False,
+                batch_size=batch_size,
             )
         else:
             smpl_params_failure_cases = {
@@ -1258,7 +1305,7 @@ class Conversion:
 
                 # Convert SMPL vertices to MHR space
                 sequence_vertices = self._compute_target_vertices(
-                    smpl_output.vertices, "smpl2mhr"
+                    smpl_output.vertices, "smpl2mhr", batch_size=batch_size
                 )  # [steps+1, V_mhr, 3]
                 # Make sure the last frame is exactly the target frame vertices.
                 # Without this, the last frame vertices can be different from the target frame vertices if the SMPL(X) parameters are estimated in Step 3.
@@ -1271,6 +1318,7 @@ class Conversion:
                     single_identity=False,
                     is_tracking=True,
                     exclude_expression=exclude_expression,
+                    batch_size=batch_size,
                 )
             else:
                 # Average the per-frame identity parameters.
@@ -1293,6 +1341,7 @@ class Conversion:
                     is_tracking=True,
                     exclude_expression=exclude_expression,
                     known_parameters=(identity_parameter_mask, full_parameter),
+                    batch_size=batch_size,
                 )
 
             # Step 4.3 Get the fitting result for the final frame and update the mhr result parameters
@@ -1344,6 +1393,7 @@ class Conversion:
         self,
         fitting_parameter_results: dict[str, torch.Tensor],
         target_vertices: torch.Tensor,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         """
         Compute conversion errors in average vertex distance using batch processing.
@@ -1356,11 +1406,13 @@ class Conversion:
         Returns:
             Array of average vertex distance errors for each frame
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         return evaluate_model_fitting_error(
             model=self._mhr_model,
             parameters=fitting_parameter_results,
             target_vertices=target_vertices,
-            batch_size=self._batch_size,
+            batch_size=batch_size,
             device=self._DEVICE,
             model_type="mhr",
         )
@@ -1369,6 +1421,7 @@ class Conversion:
         self,
         fitting_parameter_results: dict[str, torch.Tensor],
         target_vertices: torch.Tensor,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         """
         Compute conversion errors in average vertex distance using batch processing.
@@ -1381,11 +1434,13 @@ class Conversion:
         Returns:
             Array of average vertex distance errors for each frame
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         return evaluate_model_fitting_error(
             model=self._smpl_model,
             parameters=fitting_parameter_results,
             target_vertices=target_vertices,
-            batch_size=self._batch_size,
+            batch_size=batch_size,
             device=self._DEVICE,
             model_type="smpl",
         )
@@ -1396,6 +1451,7 @@ class Conversion:
         source_vertex: torch.Tensor | np.ndarray,
         faces: np.ndarray,
         num_selected_frames: int = 16,
+        batch_size: int | None = None,
     ) -> np.ndarray:
         """
         Select frames for identity estimation based on the average edge distance between the source and target meshes.
@@ -1409,6 +1465,8 @@ class Conversion:
         Returns:
             Selected frame indices
         """
+        if batch_size is None:
+            batch_size = self._batch_size
         tmp_mesh = trimesh.Trimesh(source_vertex, faces, process=False)
         edges = tmp_mesh.edges_unique.copy()
         source_vertex = self._to_tensor(source_vertex)
@@ -1437,8 +1495,8 @@ class Conversion:
 
         source_edges = source_vertex[edges[:, 1]] - source_vertex[edges[:, 0]]
 
-        for batch_start in range(0, num_frames, self._batch_size):
-            batch_end = min(batch_start + self._batch_size, num_frames)
+        for batch_start in range(0, num_frames, batch_size):
+            batch_end = min(batch_start + batch_size, num_frames)
 
             target_verts_batch = target_vertices[batch_start:batch_end]
             target_edges = (

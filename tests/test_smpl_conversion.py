@@ -20,6 +20,7 @@ on the MHR model run when MHR_TEST_ASSETS names the release asset folder.
 """
 
 import os
+import sys
 import types
 
 import numpy as np
@@ -30,9 +31,12 @@ from tests.test_smpl_fast_fitting import (
     _fitter,
     _load_tool_module,
     _NUM_VERTICES,
+    _one_person,
+    _random_parameters,
     _rodrigues,
     _TOOL_DIR,
     _ToyBodyModel,
+    _vertices,
     conversion,
 )
 
@@ -125,7 +129,7 @@ def test_one_betas_row_is_shared_by_every_frame(monkeypatch):
         recorded["smpl_parameters"] = smpl_parameters
         return fitting_parameter_results, np.zeros(num_frames)
 
-    monkeypatch.setattr(converter, "_compute_target_vertices", lambda v, d: v)
+    monkeypatch.setattr(converter, "_compute_target_vertices", lambda v, d, **k: v)
     monkeypatch.setattr(converter, "_s2m_fit_mhr_using_pymomentum", fit)
     monkeypatch.setattr(converter, "_s2m_reprocess_failure_cases", reprocess)
 
@@ -444,3 +448,279 @@ def test_mhr_to_smplx_returns_the_rest_body_or_refuses_the_lod(
             result.result_vertices[0] - v_template, axis=-1
         )
         assert deviation_cm.max() < 1.0
+
+
+def _mhr_converter(monkeypatch):
+    """A PyTorch converter of the LOD 1 release model with one step per stage."""
+    from mhr.mhr import MHR
+
+    model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=1)
+    smpl_model = types.SimpleNamespace(
+        v_template=torch.zeros(_NUM_VERTICES_SMPL, 3), to=lambda device: smpl_model
+    )
+    converter = conversion.Conversion(model, smpl_model, method="pytorch")
+    converter._s2m_load_masks()
+    optimize_mhr = conversion.PyTorchMHRFitting._optimize_mhr
+
+    def optimize_mhr_briefly(self, *args, **kwargs):
+        kwargs["stage_iterations"] = [[1, 1], [1, 1, 1], [5]]
+        return optimize_mhr(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        conversion.PyTorchMHRFitting, "_optimize_mhr", optimize_mhr_briefly
+    )
+    return converter, model
+
+
+def _mhr_vertices(model, num_frames):
+    generator = torch.Generator().manual_seed(0)
+    with torch.no_grad():
+        vertices, _ = model(
+            torch.randn(num_frames, 45, generator=generator),
+            0.05 * torch.randn(num_frames, 204, generator=generator),
+            torch.rand(num_frames, 72, generator=generator),
+        )
+    return vertices
+
+
+@pytest.mark.parametrize(
+    "target_model",
+    [
+        "smpl",
+        pytest.param(
+            "mhr",
+            marks=pytest.mark.skipif(
+                ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder"
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("single_identity", [False, True])
+def test_the_fit_does_not_depend_on_the_batch_size(
+    target_model, single_identity, monkeypatch
+):
+    # Every stage steps on the loss of all frames, added up batch by batch, so
+    # every batch size must give the fit of one batch, also for one body shape
+    # shared by all frames. The targets are two people, so that a batch can
+    # hold one person or both.
+    fits = {}
+    if target_model == "smpl":
+        # In float64 the batch sums match the sum of one batch to about 1e-13.
+        dtype = torch.get_default_dtype()
+        torch.set_default_dtype(torch.float64)
+        try:
+            model = _ToyBodyModel()
+            people = [_one_person(6, seed=seed, scale=0.1) for seed in (21, 22)]
+            target = torch.cat([_vertices(model, person) for person in people])
+            for batch_size in (256, 1, 4, 8):
+                fitter = _fitter(model)
+                fitter._batch_size = batch_size
+                fits[batch_size] = fitter.fit(
+                    target.clone(),
+                    single_identity=single_identity,
+                    is_tracking=False,
+                )
+        finally:
+            torch.set_default_dtype(dtype)
+        atol = 1e-9
+    else:
+        converter, model = _mhr_converter(monkeypatch)
+        generator = torch.Generator().manual_seed(0)
+        identity = torch.randn(2, 45, generator=generator).repeat_interleave(2, 0)
+        with torch.no_grad():
+            target, _ = model(
+                identity,
+                0.05 * torch.randn(4, 204, generator=generator),
+                torch.zeros(4, 72),
+            )
+        # In float32, one thread keeps the float sums the same in every run.
+        threads = torch.get_num_threads()
+        torch.set_num_threads(1)
+        try:
+            for batch_size in (256, 1, 2, 3):
+                fitter = conversion.PyTorchMHRFitting(
+                    mhr_model=model,
+                    mhr_edges=converter._mhr_edges,
+                    mhr_vertex_mask=converter._mhr_vertex_mask,
+                    mhr_param_masks=converter._mhr_param_masks,
+                    device="cpu",
+                    batch_size=batch_size,
+                )
+                fits[batch_size] = fitter.fit(
+                    target.clone(), single_identity=single_identity, is_tracking=False
+                )
+        finally:
+            torch.set_num_threads(threads)
+        # float32 sums in another order differ by up to about 2e-4 here.
+        atol = 5e-4
+
+    single_batch = fits.pop(256)
+    for batch_size, fit in fits.items():
+        for name, value in single_batch.items():
+            torch.testing.assert_close(
+                fit[name].detach(),
+                value.detach(),
+                rtol=0,
+                atol=atol,
+                msg=lambda message: f"batch_size={batch_size}, {name}: {message}",
+            )
+
+
+@pytest.mark.skipif(ASSETS is None, reason="set MHR_TEST_ASSETS to the asset folder")
+def test_pytorch_mhr_fit_returns_parameters_without_gradients(monkeypatch):
+    converter, model = _mhr_converter(monkeypatch)
+
+    parameters = converter._s2m_fit_mhr_using_pytorch(
+        _mhr_vertices(model, 2), single_identity=False
+    )
+
+    for name, value in parameters.items():
+        assert not value.requires_grad, name
+        value.numpy()
+
+
+@pytest.mark.parametrize(
+    "single_identity,is_tracking,num_frames,batch_size",
+    [
+        (False, False, 2, 256),
+        (True, False, 2, 256),
+        (True, True, 2, 256),
+        (False, True, 17, 1),  # More than 16 x batch_size frames are tracked.
+    ],
+)
+def test_default_smpl_fit_returns_parameters_without_gradients(
+    single_identity, is_tracking, num_frames, batch_size
+):
+    model = _ToyBodyModel()
+    fitter = _fitter(model)
+    fitter._batch_size = batch_size
+    target = _vertices(model, _random_parameters(num_frames, seed=12, scale=0.1))
+
+    parameters = fitter.fit(
+        target.clone(), single_identity=single_identity, is_tracking=is_tracking
+    )
+
+    for name, value in parameters.items():
+        assert not value.requires_grad, name
+        value.numpy()
+
+
+@pytest.mark.parametrize(
+    "method", ["convert_mhr2smpl", "convert_sam3d_output_to_smpl", "convert_smpl2mhr"]
+)
+def test_a_batch_size_given_to_a_call_applies_to_that_call_only(method, monkeypatch):
+    # A stand-in for the LOD 1 model, with its 18439 mesh vertices.
+    mesh = types.SimpleNamespace(vertices=np.zeros((18439, 3)))
+    mhr_model = types.SimpleNamespace(
+        character=types.SimpleNamespace(mesh=mesh), to=lambda device: mhr_model
+    )
+    smpl_model = types.SimpleNamespace(
+        v_template=torch.zeros(_NUM_VERTICES_SMPL, 3), to=lambda device: smpl_model
+    )
+    converter = conversion.Conversion(
+        mhr_model, smpl_model, method="pytorch", batch_size=4
+    )
+    used_batch_sizes = {"meshes": [], "fit": []}
+
+    def record(step, result):
+        def run(*args, batch_size=None, **kwargs):
+            used_batch_sizes[step].append(
+                converter._batch_size if batch_size is None else batch_size
+            )
+            return result
+
+        return run
+
+    mhr_vertices = np.zeros((1, 18439, 3), np.float32)
+    monkeypatch.setattr(
+        converter, "_mhr_para2mesh", record("meshes", (None, mhr_vertices))
+    )
+    monkeypatch.setattr(converter, "_m2s_fit_smpl_using_pytorch", record("fit", {}))
+    monkeypatch.setattr(converter, "_s2m_fit_mhr_using_pytorch", record("fit", {}))
+    monkeypatch.setattr(converter, "_compute_target_vertices", lambda v, *a, **k: v)
+    monkeypatch.setattr(converter, "_s2m_load_masks", lambda: None)
+    monkeypatch.setattr(
+        converter, "_m2s_evaluate_conversion_error", lambda *a, **k: None
+    )
+    monkeypatch.setattr(
+        converter, "_s2m_evaluate_conversion_error", lambda *a, **k: None
+    )
+    # Without pred_vertices, the MHR meshes are made from the parameters.
+    person = {
+        "mhr_model_params": np.zeros(204, np.float32),
+        "shape_params": np.zeros(45, np.float32),
+        "expr_params": np.zeros(72, np.float32),
+        "pred_cam_t": np.zeros(3, np.float32),
+    }
+    inputs = {
+        "convert_mhr2smpl": {"mhr_vertices": mhr_vertices},
+        "convert_sam3d_output_to_smpl": {"sam3d_outputs": [person]},
+        "convert_smpl2mhr": {
+            "smpl_vertices": np.zeros((1, _NUM_VERTICES_SMPL, 3), np.float32)
+        },
+    }[method]
+    convert = getattr(converter, method)
+
+    convert(**inputs)
+    convert(**inputs, batch_size=2)
+    convert(**inputs)
+
+    assert used_batch_sizes["fit"] == [4, 2, 4]
+    if method == "convert_sam3d_output_to_smpl":
+        assert used_batch_sizes["meshes"] == [4, 2, 4]
+
+
+@pytest.mark.parametrize(
+    "people", ["nobody", "without pred_vertices", "only pred_vertices"]
+)
+def test_sam3d_conversion_of_people_with_some_outputs_missing(people, monkeypatch):
+    converter = object.__new__(conversion.Conversion)
+    converter._DEVICE = "cpu"
+    recorded = {}
+    monkeypatch.setattr(
+        converter, "convert_mhr2smpl", lambda **kwargs: recorded.update(kwargs)
+    )
+    monkeypatch.setattr(
+        converter,
+        "_mhr_para2mesh",
+        lambda parameters, return_mesh, **kwargs: (
+            None,
+            np.ones((1, 5, 3), np.float32),
+        ),
+    )
+    person = {
+        "mhr_model_params": np.zeros(204, np.float32),
+        "shape_params": np.zeros(45, np.float32),
+        "expr_params": np.zeros(72, np.float32),
+        "pred_vertices": np.zeros((5, 3), np.float32),
+        "pred_cam_t": np.zeros(3, np.float32),
+    }
+    if people == "without pred_vertices":
+        del person["pred_vertices"]
+    elif people == "only pred_vertices":
+        for name in ("mhr_model_params", "shape_params", "expr_params"):
+            del person[name]
+
+    result = converter.convert_sam3d_output_to_smpl(
+        [] if people == "nobody" else [person]
+    )
+
+    if people == "nobody":
+        # SAM 3D Body returns no outputs for an image without a person.
+        assert result == conversion.ConversionResult()
+        assert recorded == {}
+    else:
+        assert recorded["mhr_vertices"].shape == (1, 5, 3)
+
+
+@pytest.mark.parametrize("given", ["--smpl", "--smplx"])
+def test_example_skips_the_model_that_is_not_given(given, monkeypatch):
+    example = _load_tool_module("example")
+    monkeypatch.setattr(sys, "argv", ["example.py", given, "model.npz"])
+
+    arguments = example._parse_arguments()
+
+    # run_examples skips the conversions of a model whose file is None.
+    assert (arguments.smpl, arguments.smplx) == (
+        ("model.npz", None) if given == "--smpl" else (None, "model.npz")
+    )
