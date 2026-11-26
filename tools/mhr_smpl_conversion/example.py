@@ -327,8 +327,8 @@ def _parse_arguments():
         "--smpl",
         type=str,
         required=False,
-        default="./data/SMPL_NEUTRAL.npz",
-        help="Path to an SMPL .npz or Chumpy-free .pkl model file.",
+        default=None,
+        help="Path to an SMPL .npz or Chumpy-free .pkl model file. If not specified, SMPL related conversion will be skipped.",
     )
 
     parser.add_argument(
@@ -345,7 +345,7 @@ def _parse_arguments():
         "--smplx",
         type=str,
         required=False,
-        default="./data/SMPLX_NEUTRAL.npz",
+        default=None,
         help="Path to an SMPL-X .npz or Chumpy-free .pkl model file. If not specified, SMPL-X related conversion will be skipped.",
     )
 

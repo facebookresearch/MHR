@@ -104,7 +104,7 @@ Meshes of the source and the target model can be found under each conversion res
 ```python
 import torch
 from mhr.mhr import MHR
-from smpl_mhr import Conversion
+from conversion import Conversion  # run from tools/mhr_smpl_conversion
 import smplx
 
 # Initialize models
@@ -119,7 +119,7 @@ converter = Conversion(
 )
 
 # Convert SAM3D output to SMPL(X)
-results = converter.convert_sam3d_output_to_smplx(
+results = converter.convert_sam3d_output_to_smpl(
     sam3d_outputs=sam3d_outputs,
     return_smpl_meshes=True,
     return_smpl_parameters=True,
@@ -150,13 +150,13 @@ The main conversion class that handles all transformations between SMPL/SMPLX an
 #### Constructor
 
 ```python
-Conversion(mhr_model, smpl_model, method="pytorch")
+Conversion(mhr_model, smpl_model, method="pymomentum")
 ```
 
 **Parameters:**
 - `mhr_model` (MHR): LOD 1 MHR body model instance, e.g. `MHR.from_files(lod=1)`; other LODs raise a `ValueError`
 - `smpl_model` (smplx.SMPLX | smplx.SMPL): SMPL or SMPLX model instance
-- `method` (str): Optimization method ("pytorch" or "pymomentum")
+- `method` (str): Optimization method ("pymomentum", SMPL(X) -> MHR only, or "pytorch")
 
 #### `convert_smpl2mhr()`
 
@@ -165,10 +165,10 @@ Convert SMPL/SMPLX data to MHR format.
 **Parameters:**
 - `smpl_vertices` (torch.Tensor, optional): SMPL vertex positions [B, V, 3]
 - `smpl_parameters` (dict, optional): SMPL parameter dictionary
-- `single_identity` (bool): Use single identity across frames (default: True)
+- `single_identity` (bool): Use single identity across frames (default: False)
 - `is_tracking` (bool): Use temporal tracking for optimization (default: False)
 - `return_mhr_meshes` (bool): Return mesh objects (default: False)
-- `return_mhr_parameters` (bool): Return parameter dictionary (default: False)
+- `return_mhr_parameters` (bool): Return parameter dictionary (default: True)
 - `return_mhr_vertices` (bool): Return vertex arrays (default: False)
 - `return_fitting_errors` (bool): Return fitting error metrics (default: True)
 
@@ -182,10 +182,10 @@ Convert MHR data to SMPL/SMPLX format.
 **Parameters:**
 - `mhr_vertices` (torch.Tensor, optional): MHR vertex positions [B, V, 3]
 - `mhr_parameters` (dict, optional): MHR parameter dictionary
-- `single_identity` (bool): Use single identity across frames (default: True)
+- `single_identity` (bool): Use single identity across frames (default: False)
 - `is_tracking` (bool): Use temporal tracking for optimization, only for SMPL(X)-> MHR with PyMomentum (default: False)
 - `return_smpl_meshes` (bool): Return mesh objects (default: False)
-- `return_smpl_parameters` (bool): Return parameter dictionary (default: False)
+- `return_smpl_parameters` (bool): Return parameter dictionary (default: True)
 - `return_smpl_vertices` (bool): Return vertex arrays (default: False)
 - `fast_fitting` (bool): Fit with the fast path, with `single_identity` True or False, see [Fast Fitting](#fast-fitting) (default: False)
 - `initial_smpl_parameters` (dict, optional): SMPL(X) parameters to start from, for example the previous video frame's `result_parameters`; only with `fast_fitting=True`
