@@ -16,6 +16,7 @@
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -161,6 +162,40 @@ def test_from_files_default_lists_every_searched_folder(isolated, monkeypatch):
         assert str(folder) in message
     assert str(isolated / "dest" / "assets" / "lod1.fbx") in message
     assert "corrective_activation.npz" not in message
+
+
+def test_from_files_default_skips_a_partial_folder(isolated, monkeypatch):
+    mhr_module = pytest.importorskip("mhr.mhr")
+    monkeypatch.setenv(io.ASSETS_DEST_ENV, str(isolated / "dest"))
+    # An extraction that stopped after the model file, ahead of a complete folder.
+    _make_assets(isolated / "dest" / "assets")
+    complete = _make_assets(isolated / "work" / "assets")
+    for name in (
+        "lod1.fbx",
+        "corrective_blendshapes_lod1.npz",
+        "corrective_activation.npz",
+    ):
+        (complete / name).write_text("")
+
+    class Loaded(Exception):
+        pass
+
+    def load_fbx(fbx_path, model_path, load_blendshapes):
+        raise Loaded(fbx_path, model_path)
+
+    monkeypatch.setattr(
+        mhr_module,
+        "pym_geometry",
+        SimpleNamespace(Character=SimpleNamespace(load_fbx=load_fbx)),
+    )
+
+    with pytest.raises(Loaded) as excinfo:
+        mhr_module.MHR.from_files(device="cpu", lod=1)
+
+    assert excinfo.value.args == (
+        str(complete / "lod1.fbx"),
+        str(complete / io.MODEL_FILE_NAME),
+    )
 
 
 def test_from_files_default_is_resolved_at_call_time(isolated, monkeypatch):

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -67,13 +68,22 @@ def _download(
                 urllib.request.urlopen(request, timeout=timeout) as response,
                 output.open("wb") as f,
             ):
+                expected_size = response.headers.get("Content-Length")
                 while chunk := response.read(CHUNK_SIZE):
                     f.write(chunk)
 
-            if output.stat().st_size == 0:
+            size = output.stat().st_size
+            if size == 0:
                 raise RuntimeError("downloaded archive is empty")
+            if expected_size is not None and size != int(expected_size):
+                raise RuntimeError(f"downloaded {size} of {expected_size} bytes")
             return
-        except (OSError, RuntimeError, urllib.error.URLError) as exc:
+        except (
+            OSError,
+            RuntimeError,
+            urllib.error.URLError,
+            http.client.HTTPException,
+        ) as exc:
             last_error = exc
             output.unlink(missing_ok=True)
             # A client error other than a timeout or a rate limit does not go
