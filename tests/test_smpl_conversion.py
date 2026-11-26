@@ -496,12 +496,13 @@ def _mhr_vertices(model, num_frames):
     ],
 )
 @pytest.mark.parametrize("single_identity", [False, True])
-def test_the_final_fit_does_not_depend_on_the_batch_size(target_model, single_identity):
-    # The final stage steps once per epoch on the loss of all frames, so every
-    # batch size must give the fit of one batch, also for one body shape shared
-    # by all frames. The targets are two people, so that a batch can hold one
-    # person or both. The initial pose stages, which fit one batch after the
-    # other, are skipped.
+def test_the_fit_does_not_depend_on_the_batch_size(
+    target_model, single_identity, monkeypatch
+):
+    # Every stage steps on the loss of all frames, added up batch by batch, so
+    # every batch size must give the fit of one batch, also for one body shape
+    # shared by all frames. The targets are two people, so that a batch can
+    # hold one person or both.
     fits = {}
     if target_model == "smpl":
         # In float64 the batch sums match the sum of one batch to about 1e-13.
@@ -514,23 +515,16 @@ def test_the_final_fit_does_not_depend_on_the_batch_size(target_model, single_id
             for batch_size in (256, 1, 4, 8):
                 fitter = _fitter(model)
                 fitter._batch_size = batch_size
-                fits[batch_size] = fitter._optimize_smpl(
+                fits[batch_size] = fitter.fit(
                     target.clone(),
                     single_identity=single_identity,
-                    iterations=((0, 0, 0), 300),
+                    is_tracking=False,
                 )
         finally:
             torch.set_default_dtype(dtype)
         atol = 1e-9
     else:
-        from mhr.mhr import MHR
-
-        model = MHR.from_files(ASSETS, device=torch.device("cpu"), lod=1)
-        smpl_model = types.SimpleNamespace(
-            v_template=torch.zeros(_NUM_VERTICES_SMPL, 3), to=lambda device: smpl_model
-        )
-        converter = conversion.Conversion(model, smpl_model, method="pytorch")
-        converter._s2m_load_masks()
+        converter, model = _mhr_converter(monkeypatch)
         generator = torch.Generator().manual_seed(0)
         identity = torch.randn(2, 45, generator=generator).repeat_interleave(2, 0)
         with torch.no_grad():
@@ -552,15 +546,13 @@ def test_the_final_fit_does_not_depend_on_the_batch_size(target_model, single_id
                     device="cpu",
                     batch_size=batch_size,
                 )
-                fits[batch_size] = fitter._optimize_mhr(
-                    target.clone(),
-                    single_identity=single_identity,
-                    stage_iterations=[[0, 0], [0, 0, 0], [5]],
+                fits[batch_size] = fitter.fit(
+                    target.clone(), single_identity=single_identity, is_tracking=False
                 )
         finally:
             torch.set_num_threads(threads)
-        # float32 sums in another order differ by less than 2e-5 here.
-        atol = 1e-4
+        # float32 sums in another order differ by up to about 2e-4 here.
+        atol = 5e-4
 
     single_batch = fits.pop(256)
     for batch_size, fit in fits.items():

@@ -327,7 +327,7 @@ class PyTorchMHRFitting(BasePyTorchFitting):
             variables, batch_start, batch_end, self._device, "mhr"
         )
 
-        verts, _ =  self._mhr_model(
+        verts, _ = self._mhr_model(
             identity_coeffs=batched_variables["identity_coeffs"],
             model_parameters=batched_variables["lbs_model_params"],
             face_expr_coeffs=batched_variables["face_expr_coeffs"],
@@ -886,57 +886,6 @@ class PyTorchMHRFitting(BasePyTorchFitting):
         )
         return optimizable_parameters, parameter_masks
 
-    def _optimize_head_batch(
-        self,
-        head_variables: dict[str, torch.Tensor],
-        target_verts_batch: torch.Tensor,
-        target_edge_vecs: torch.Tensor,
-        batch_start: int,
-        batch_end: int,
-        known_parameters: dict[str, torch.Tensor],
-        optimizable_parameters: tuple[list[str], list[str]],
-        parameter_masks: tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]],
-        iterations: list[int],
-        learning_rates: list[float],
-        head_vertex_mask: torch.Tensor,
-        head_edges: torch.Tensor,
-        head_vertex_weights: torch.Tensor,
-    ) -> None:
-        """Optimize a single batch for head parameters."""
-        for stage_idx, (params, num_iters, param_mask, learn_rate) in enumerate(
-            zip(optimizable_parameters, iterations, parameter_masks, learning_rates)
-        ):
-            vertex_loss_weight = (
-                0.0 if stage_idx == 0 else OptimizationConstants.HEAD_VERTEX_LOSS_WEIGHT
-            )
-            optimizer = torch.optim.Adam(
-                [head_variables[p] for p in params if p not in known_parameters],
-                lr=learn_rate,
-            )
-            for _ in range(num_iters):
-                self._optimize_one_batch(
-                    batch_start,
-                    batch_end,
-                    head_variables,
-                    target_edge_vecs,
-                    target_verts_batch,
-                    optimizer,
-                    gradient_masks=param_mask,
-                    edge_loss_weight=OptimizationConstants.INITIAL_EDGE_WEIGHT,
-                    vertex_loss_weight=vertex_loss_weight,
-                    vertex_mask=head_vertex_mask,
-                    customized_edge_definition=head_edges,
-                )
-
-            if "transls" not in params:
-                self._update_translation_from_head(
-                    head_variables,
-                    target_verts_batch,
-                    batch_start,
-                    batch_end,
-                    head_vertex_weights,
-                )
-
     def _optimize_head_parameters(
         self,
         target_vertices: torch.Tensor,
@@ -966,32 +915,55 @@ class PyTorchMHRFitting(BasePyTorchFitting):
 
         optimizable_parameters, parameter_masks = self._get_head_optimization_config()
 
-        for batch_start in tqdm(
-            range(0, num_frames, self._batch_size),
-            desc="Head pose, identity, and face expression optimization",
-            disable=disable_inner_message,
+        for stage_idx, (params, num_iters, param_mask, learn_rate) in enumerate(
+            zip(optimizable_parameters, iterations, parameter_masks, learning_rates)
         ):
-            batch_end = min(batch_start + self._batch_size, num_frames)
-            target_verts_batch = target_vertices[batch_start:batch_end]
-            target_edge_vecs = self._compute_edge_vectors(
-                target_verts_batch, self._head_edges
+            vertex_loss_weight = (
+                0.0 if stage_idx == 0 else OptimizationConstants.HEAD_VERTEX_LOSS_WEIGHT
             )
+            optimizer = torch.optim.Adam(
+                [head_variables[p] for p in params if p not in known_parameters],
+                lr=learn_rate,
+            )
+            for _ in tqdm(
+                range(num_iters),
+                desc="Head pose, identity, and face expression optimization",
+                disable=disable_inner_message,
+            ):
+                # One step on the loss of all frames, added up batch by batch.
+                optimizer.zero_grad()
+                for batch_start in range(0, num_frames, self._batch_size):
+                    batch_end = min(batch_start + self._batch_size, num_frames)
+                    target_verts_batch = target_vertices[batch_start:batch_end]
+                    target_edge_vecs = self._compute_edge_vectors(
+                        target_verts_batch, self._head_edges
+                    )
+                    self._optimize_one_batch(
+                        batch_start,
+                        batch_end,
+                        head_variables,
+                        target_edge_vecs,
+                        target_verts_batch,
+                        None,
+                        gradient_masks=param_mask,
+                        edge_loss_weight=OptimizationConstants.INITIAL_EDGE_WEIGHT,
+                        vertex_loss_weight=vertex_loss_weight,
+                        vertex_mask=self._head_vertex_mask,
+                        customized_edge_definition=self._head_edges,
+                        loss_scale=(batch_end - batch_start) / num_frames,
+                    )
+                optimizer.step()
 
-            self._optimize_head_batch(
-                head_variables,
-                target_verts_batch,
-                target_edge_vecs,
-                batch_start,
-                batch_end,
-                known_parameters,
-                optimizable_parameters,
-                parameter_masks,
-                iterations,
-                learning_rates,
-                self._head_vertex_mask,
-                self._head_edges,
-                self._head_vertex_weights,
-            )
+            if "transls" not in params:
+                for batch_start in range(0, num_frames, self._batch_size):
+                    batch_end = min(batch_start + self._batch_size, num_frames)
+                    self._update_translation_from_head(
+                        head_variables,
+                        target_vertices[batch_start:batch_end],
+                        batch_start,
+                        batch_end,
+                        self._head_vertex_weights,
+                    )
 
         return head_variables
 
@@ -1040,44 +1012,6 @@ class PyTorchMHRFitting(BasePyTorchFitting):
         )
         return optimizable_parameters, parameter_masks
 
-    def _optimize_initial_pose_batch(
-        self,
-        variables: dict[str, torch.Tensor],
-        target_verts_batch: torch.Tensor,
-        target_edge_vecs: torch.Tensor,
-        batch_start: int,
-        batch_end: int,
-        known_parameters: dict[str, torch.Tensor],
-        optimizable_parameters: tuple[list[str], list[str], list[str]],
-        parameter_masks: tuple[
-            dict[str, torch.Tensor], dict[str, torch.Tensor], dict[str, torch.Tensor]
-        ],
-        iterations: list[int],
-        learning_rates: list[float],
-    ) -> None:
-        """Optimize a single batch for initial pose parameters."""
-        for params, num_iters, param_mask, learn_rate in zip(
-            optimizable_parameters, iterations, parameter_masks, learning_rates
-        ):
-            optimizer = torch.optim.Adam(
-                [variables[p] for p in params if p not in known_parameters],
-                lr=learn_rate,
-            )
-            for _ in range(num_iters):
-                self._optimize_one_batch(
-                    batch_start,
-                    batch_end,
-                    variables,
-                    target_edge_vecs,
-                    target_verts_batch,
-                    optimizer,
-                    gradient_masks=param_mask,
-                )
-
-        self._update_translation_from_vertices(
-            variables, target_verts_batch, batch_start, batch_end
-        )
-
     def _optimize_initial_pose(
         self,
         target_vertices: torch.Tensor,
@@ -1108,28 +1042,45 @@ class PyTorchMHRFitting(BasePyTorchFitting):
             parameter_masks,
         ) = self._get_initial_pose_optimization_config()
 
-        for batch_start in tqdm(
-            range(0, num_frames, self._batch_size),
-            desc="Initial pose optimization batches",
-            disable=disable_inner_message,
+        for params, num_iters, param_mask, learn_rate in zip(
+            optimizable_parameters, iterations, parameter_masks, learning_rates
         ):
-            batch_end = min(batch_start + self._batch_size, num_frames)
-            target_verts_batch = target_vertices[batch_start:batch_end]
-            target_edge_vecs = self._compute_edge_vectors(
-                target_verts_batch, self._mhr_edges
+            optimizer = torch.optim.Adam(
+                [variables[p] for p in params if p not in known_parameters],
+                lr=learn_rate,
             )
+            for _ in tqdm(
+                range(num_iters),
+                desc="Initial pose optimization",
+                disable=disable_inner_message,
+            ):
+                # One step on the loss of all frames, added up batch by batch.
+                optimizer.zero_grad()
+                for batch_start in range(0, num_frames, self._batch_size):
+                    batch_end = min(batch_start + self._batch_size, num_frames)
+                    target_verts_batch = target_vertices[batch_start:batch_end]
+                    target_edge_vecs = self._compute_edge_vectors(
+                        target_verts_batch, self._mhr_edges
+                    )
+                    self._optimize_one_batch(
+                        batch_start,
+                        batch_end,
+                        variables,
+                        target_edge_vecs,
+                        target_verts_batch,
+                        None,
+                        gradient_masks=param_mask,
+                        loss_scale=(batch_end - batch_start) / num_frames,
+                    )
+                optimizer.step()
 
-            self._optimize_initial_pose_batch(
+        for batch_start in range(0, num_frames, self._batch_size):
+            batch_end = min(batch_start + self._batch_size, num_frames)
+            self._update_translation_from_vertices(
                 variables,
-                target_verts_batch,
-                target_edge_vecs,
+                target_vertices[batch_start:batch_end],
                 batch_start,
                 batch_end,
-                known_parameters,
-                optimizable_parameters,
-                parameter_masks,
-                iterations,
-                learning_rates,
             )
 
         return variables
@@ -1895,10 +1846,12 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
                     # factorization fails takes no step and gets more damping.
                     hessian = jtj + torch.diag_embed(damping[:, None] * diagonal)
                     factor, info = torch.linalg.cholesky_ex(hessian.double())
-                    step = -torch.cholesky_solve(
-                        gradient.double()[..., None], factor
-                    )[..., 0].to(x.dtype)
-                    step = torch.where((info == 0)[:, None], step, torch.zeros_like(step))
+                    step = -torch.cholesky_solve(gradient.double()[..., None], factor)[
+                        ..., 0
+                    ].to(x.dtype)
+                    step = torch.where(
+                        (info == 0)[:, None], step, torch.zeros_like(step)
+                    )
                     trial_residual = vmap(frame_vertices)(x + step) - target
                     trial_cost = trial_residual.square().sum(1)
                     accept = pending & (trial_cost < cost)
@@ -1954,51 +1907,56 @@ class PyTorchSMPLFitting(BasePyTorchFitting):
         )
         if not disable_inner_message:
             logger.info("Initial pose optimization...")
-        for batch_start in tqdm(
-            range(0, num_frames, self._batch_size),
-            desc="Initial pose optimization batches",
-            disable=disable_inner_message,
-        ):
-            batch_end = min(batch_start + self._batch_size, num_frames)
-
-            target_verts_batch = target_vertices[batch_start:batch_end]
-            target_edge_vecs = (
-                target_verts_batch[:, self._smpl_edges[:, 1], :]
-                - target_verts_batch[:, self._smpl_edges[:, 0], :]
+        optimizable_parameters = [
+            ["global_orient"],
+            [
+                "global_orient",
+                "body_pose",
+                "betas",
+                "expression",
+            ],
+            [
+                "global_orient",
+                "body_pose",
+                "betas",
+                "expression",
+                "left_hand_pose",
+                "right_hand_pose",
+            ],
+        ]
+        coarse_stage_iterations = iterations[0]
+        for op, it in zip(optimizable_parameters, coarse_stage_iterations):
+            optimizer = torch.optim.Adam(
+                [variables[p] for p in op if p in variables], lr=learning_rates[0]
             )
-
-            optimizable_parameters = [
-                ["global_orient"],
-                [
-                    "global_orient",
-                    "body_pose",
-                    "betas",
-                    "expression",
-                ],
-                [
-                    "global_orient",
-                    "body_pose",
-                    "betas",
-                    "expression",
-                    "left_hand_pose",
-                    "right_hand_pose",
-                ],
-            ]
-            coarse_stage_iterations = iterations[0]
-            for op, it in zip(optimizable_parameters, coarse_stage_iterations):
-                optimizer = torch.optim.Adam(
-                    [variables[p] for p in op if p in variables], lr=learning_rates[0]
-                )
-                for _ in range(it):
+            for _ in tqdm(
+                range(it),
+                desc="Initial pose optimization",
+                disable=disable_inner_message,
+            ):
+                # One step on the loss of all frames, added up batch by batch.
+                optimizer.zero_grad()
+                for batch_start in range(0, num_frames, self._batch_size):
+                    batch_end = min(batch_start + self._batch_size, num_frames)
+                    target_verts_batch = target_vertices[batch_start:batch_end]
+                    target_edge_vecs = (
+                        target_verts_batch[:, self._smpl_edges[:, 1], :]
+                        - target_verts_batch[:, self._smpl_edges[:, 0], :]
+                    )
                     self._optimize_one_batch(
                         batch_start,
                         batch_end,
                         variables,
                         target_edge_vecs,
                         target_verts_batch,
-                        optimizer,
+                        None,
+                        loss_scale=(batch_end - batch_start) / num_frames,
                     )
+                optimizer.step()
 
+        for batch_start in range(0, num_frames, self._batch_size):
+            batch_end = min(batch_start + self._batch_size, num_frames)
+            target_verts_batch = target_vertices[batch_start:batch_end]
             # Compute the initial global translation for each frame.
             with torch.no_grad():
                 batched_smpl_parameters = self._get_batched_body_model_parameters(
