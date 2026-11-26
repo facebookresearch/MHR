@@ -112,14 +112,31 @@ class MHR(_model.MHR):
         """Load character and model parameterization, and create full model.
 
         ``folder`` is the folder with the MHR asset files. If it is None,
-        get_default_asset_folder() picks it when this method is called.
+        this uses the first of get_asset_folder_candidates() that contains
+        every file it needs, else get_default_asset_folder(), when this method
+        is called.
         Raises FileNotFoundError if an asset file is missing.
         """
+
+        def required_paths(folder: Path) -> list[str]:
+            paths = [
+                get_mhr_fbx_path(folder, lod),
+                get_mhr_model_path(folder),
+                get_mhr_blendshapes_path(folder, lod),
+            ]
+            if wants_pose_correctives:
+                paths.append(get_corrective_activation_path(folder))
+            return paths
 
         device = torch.device(device)
         if folder is None:
             searched = get_asset_folder_candidates()
-            folder = get_default_asset_folder()
+            for candidate in searched:
+                if all(os.path.isfile(path) for path in required_paths(candidate)):
+                    folder = candidate
+                    break
+            else:
+                folder = get_default_asset_folder()
         else:
             folder = Path(folder)
             searched = [folder]
@@ -131,10 +148,7 @@ class MHR(_model.MHR):
         corrective_activation_path = (
             get_corrective_activation_path(folder) if wants_pose_correctives else None
         )
-        required_paths = [fbx_path, model_path, blendshapes_path]
-        if corrective_activation_path is not None:
-            required_paths.append(corrective_activation_path)
-        missing = [path for path in required_paths if not os.path.exists(path)]
+        missing = [path for path in required_paths(folder) if not os.path.isfile(path)]
         if missing:
             raise FileNotFoundError(asset_not_found_message(missing, searched))
 

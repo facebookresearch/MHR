@@ -14,8 +14,11 @@
 
 import argparse
 import hashlib
+import http.server
 import json
 import shutil
+import socket
+import threading
 import urllib.error
 import zipfile
 
@@ -175,6 +178,7 @@ class _FakeResponse:
     def __init__(self, data: bytes):
         self._data = data
         self._pos = 0
+        self.headers = {}
 
     def read(self, n: int = -1) -> bytes:
         if self._pos >= len(self._data):
@@ -282,6 +286,56 @@ def test_download_does_not_retry_a_missing_file(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="404"):
         download_assets._download("http://example/x.zip", tmp_path / "x", retries=3)
     assert calls["n"] == 1
+
+
+@pytest.mark.parametrize("transfer", ["content-length", "chunked"])
+def test_download_retries_a_body_cut_short(tmp_path, monkeypatch, transfer):
+    """The first response stops halfway through the body and the server closes
+    the connection; the real urllib reads both responses from a local server."""
+
+    body = bytes(range(256)) * 400
+    hits = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            hits.append(self.path)
+            cut = len(hits) == 1
+            self.send_response(200)
+            if transfer == "chunked":
+                self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+                self.wfile.write(b"%x\r\n" % len(body))
+                self.wfile.write(
+                    body[: len(body) // 2] if cut else body + b"\r\n0\r\n\r\n"
+                )
+            else:
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body[: len(body) // 2] if cut else body)
+            if cut:
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.close_connection = True
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setattr(download_assets.time, "sleep", _no_sleep)
+    output = tmp_path / "assets.zip"
+    try:
+        download_assets._download(
+            f"http://127.0.0.1:{server.server_port}/assets.zip", output, retries=3
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert output.read_bytes() == body
+    assert len(hits) == 2
 
 
 # ---------------------------------------------------------------------------
